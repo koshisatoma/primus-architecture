@@ -1,0 +1,76 @@
+# Python environments and bytecode
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ROS 2 / colcon build output
+/build/
+/install/
+/log/
+/primus_ros2/build/
+/primus_ros2/install/
+/primus_ros2/log/
+
+# Rust build output
+/safety_rs/target/
+
+# Personal captures, learned state, and deployment/runtime data
+/data/
+/captures/
+/recordings/
+/outputs/
+/runs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.pid
+*.wav
+*.mp3
+*.mp4
+*.mkv
+*.avi
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Locally downloaded model weights and converted engines
+*.pt
+*.onnx
+*.engine
+*.pth
+*.safetensors
+*.tflite
+
+# Locally built executables
+/cam_bin
+/reflex_bin
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Machine-specific editor and OS files
+/.vscode/
+.DS_Store
+Thumbs.db
+
+#sim parts
+sim/menagerie/
+sim/scanned_objects/
