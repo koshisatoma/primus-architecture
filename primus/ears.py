@@ -4,6 +4,7 @@ import sounddevice as sd
 from faster_whisper import WhisperModel
 
 from primus.bus import put
+from primus.cloud_client import stt_cloud
 
 
 class Ears:
@@ -29,7 +30,6 @@ class Ears:
     def listen(self, seconds=4):
         import numpy as np
 
-        model = self._model()
         buf = sd.rec(
             int(seconds * self.sr),
             samplerate=self.sr,
@@ -42,6 +42,18 @@ class Ears:
         peak = float(np.max(np.abs(audio))) if audio.size else 0.0
         if 0 < peak < 0.1:
             audio = audio * (0.3 / peak)
+        started = time.perf_counter()
+        pcm16 = np.clip(audio, -1.0, 1.0)
+        pcm16 = (pcm16 * 32767).astype('<i2').tobytes()
+        transcript = stt_cloud(pcm16)
+        if transcript:
+            put(
+                stt_ms=round((time.perf_counter() - started) * 1000, 1),
+                stt_src='cloud',
+            )
+            return transcript
+
+        model = self._model()
         segments, _ = model.transcribe(
             audio,
             language='en',
@@ -56,5 +68,8 @@ class Ears:
         transcript = ' '.join(
             segment.text.strip() for segment in segments if segment.text.strip()
         ).strip()
-        put(stt_ms=round((time.perf_counter() - started) * 1000, 1))
+        put(
+            stt_ms=round((time.perf_counter() - started) * 1000, 1),
+            stt_src='local',
+        )
         return transcript

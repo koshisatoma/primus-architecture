@@ -68,6 +68,58 @@ Voice input uses the system audio devices. Whisper may need to download its
 `data/en_US-hfc_female-medium.onnx`; if that voice file or Piper is unavailable,
 replies are printed instead of spoken.
 
+## Optional cloud inference
+
+The optional `cloud/` package provides MJX PPO training, ASTRA episode
+collection/training, policy export, model downloads, and pod inference services.
+Model downloads need internet access and disk space, but do not use a GPU:
+
+```bash
+cd /path/to/primus3
+bash cloud/download_models.sh
+```
+
+The default download directory is `$HOME/models`; pass a directory as the first
+argument or set `MODELS` to override it. The Moshi model may require accepting
+its Hugging Face terms before it can be downloaded. Use
+`bash scripts/cloud_bootstrap.sh` on a compatible GPU pod to create the cloud
+training environment and clone this repository. It uses `$HOME/cx` by default;
+set `PRIMUS_WORKDIR`, `PRIMUS_REPO_DIR`, or `PRIMUS_VENV` to override those
+locations. Activate the same environment to download and serve models.
+
+The local client uses the cloud brain and transcription service when
+`PRIMUS_POD` is set, and falls back to local Ollama and Whisper when the cloud
+request fails:
+
+```bash
+export PRIMUS_POD=http://<pod-address>:8000
+```
+
+On the pod, install the serving stack in its Python environment, download the
+models, then launch the services with `bash cloud/serve_all.sh`. The brain uses
+port 8000, Moshi uses 8001, and transcription/depth/person re-identification
+use 8002. Serving requires the appropriate GPU drivers and model-compatible
+versions of vLLM, Moshi, PyTorch, Transformers, Faster Whisper, OpenCV, and
+Ultralytics. The downloads and service launch have not been tested against a
+live GPU pod.
+
+Run `bash cloud/smoke_test.sh` locally to check Python syntax and the local
+cloud-client fallback paths without loading GPU models. It does not validate
+the training stack or exercise a live pod.
+
+`cloud/smoke_test.sh` runs the unit tests and a small end-to-end CPU-capable
+training/export smoke. The training stack requires JAX, `mujoco-mjx`, MuJoCo,
+NumPy, and PyTorch in addition to the application dependencies. The environment
+does not need a GPU for this small smoke, although full PPO training benefits
+from one. The MJX training environment uses
+`sim/g1/scene_mjx.xml`; `sim/g1/scene.xml` currently fails MuJoCo loading
+because its eye camera targets a missing body.
+
+The service processes bind to all interfaces by default. They do not implement
+authentication; restrict exposed pod ports to trusted clients or put them
+behind an authenticated private gateway. Do not expose these endpoints
+directly to the public internet.
+
 ## ROS 2 (optional)
 
 The ROS 2 package targets ROS 2 Humble and requires `colcon`. Build it from its

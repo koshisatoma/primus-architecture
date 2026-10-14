@@ -4,6 +4,8 @@ import threading
 
 import requests
 
+from primus.cloud_client import chat_cloud
+
 
 LOGGER = logging.getLogger(__name__)
 OLLAMA_URL = 'http://127.0.0.1:11434/api/chat'
@@ -39,6 +41,16 @@ def _fallback(text):
     return "I lost my local chat connection for a moment—could you say that again?"
 
 
+def _remember(text, content):
+    _conversation.extend(
+        [
+            {'role': 'user', 'content': text},
+            {'role': 'assistant', 'content': content},
+        ]
+    )
+    del _conversation[:-MAX_HISTORY_MESSAGES]
+
+
 def chat(text):
     if not isinstance(text, str) or not text.strip():
         raise ValueError('Chat input must be a non-empty string')
@@ -49,6 +61,15 @@ def chat(text):
             *_conversation,
             {'role': 'user', 'content': text.strip()},
         ]
+        cloud_content = chat_cloud(
+            text.strip(),
+            system_prompt=PERSONA,
+            history=tuple(_conversation),
+        )
+        if cloud_content:
+            _remember(text.strip(), cloud_content)
+            return cloud_content
+
         try:
             response = requests.post(
                 OLLAMA_URL,
@@ -71,13 +92,7 @@ def chat(text):
             LOGGER.warning('Local Ollama chat unavailable: %s', error)
             return _fallback(text)
 
-        _conversation.extend(
-            [
-                {'role': 'user', 'content': text.strip()},
-                {'role': 'assistant', 'content': content},
-            ]
-        )
-        del _conversation[:-MAX_HISTORY_MESSAGES]
+        _remember(text.strip(), content)
         return content
 
 

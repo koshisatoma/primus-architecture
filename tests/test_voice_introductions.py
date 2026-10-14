@@ -1,9 +1,10 @@
+import os
 import unittest
 from unittest.mock import patch
 
 import numpy as np
 
-from primus import brain, people
+from primus import brain, cloud_client, people, social
 from primus.ears import Ears
 from primus.social_awareness import SocialAwareness
 
@@ -123,6 +124,27 @@ class IntroductionFlowTests(unittest.TestCase):
 
 
 class WhisperConfigurationTests(unittest.TestCase):
+    @patch('primus.ears.stt_cloud', return_value='cloud transcript')
+    @patch('primus.ears.put')
+    @patch('primus.ears.sd.wait')
+    @patch('primus.ears.sd.rec')
+    def test_cloud_transcription_skips_loading_local_whisper(
+        self, record, wait, put, stt_cloud
+    ):
+        record.return_value = np.array([[0.05], [-0.025]], dtype=np.float32)
+
+        with patch.object(Ears, '_model') as model_loader:
+            transcript = Ears().listen(seconds=1)
+
+        self.assertEqual(transcript, 'cloud transcript')
+        stt_cloud.assert_called_once()
+        self.assertEqual(
+            put.call_args.kwargs['stt_src'],
+            'cloud',
+        )
+        model_loader.assert_not_called()
+        wait.assert_called_once()
+
     @patch('primus.ears.put')
     @patch('primus.ears.sd.wait')
     @patch('primus.ears.sd.rec')
@@ -189,6 +211,86 @@ class VoiceActionRoutingTests(unittest.TestCase):
 
         self.assertEqual(result, "Okay, find the cup. I'm on it.")
         send_command.assert_called_once_with('Find the cup')
+
+
+class CloudChatTests(unittest.TestCase):
+    def setUp(self):
+        social.reset_conversation()
+
+    def tearDown(self):
+        social.reset_conversation()
+
+    @patch('primus.social.requests.post')
+    @patch('primus.social.chat_cloud', return_value='cloud reply')
+    def test_cloud_chat_is_first_and_keeps_conversation(
+        self, cloud_chat, local_request
+    ):
+        self.assertEqual(brain.chat('Hello'), 'cloud reply')
+        self.assertEqual(brain.chat('How are you?'), 'cloud reply')
+
+        self.assertEqual(cloud_chat.call_count, 2)
+        self.assertEqual(
+            cloud_chat.call_args.kwargs['history'],
+            (
+                {'role': 'user', 'content': 'Hello'},
+                {'role': 'assistant', 'content': 'cloud reply'},
+            ),
+        )
+        local_request.assert_not_called()
+
+    @patch('primus.social.requests.post')
+    @patch('primus.social.chat_cloud', return_value=None)
+    def test_local_ollama_remains_fallback(self, cloud_chat, local_request):
+        response = local_request.return_value
+        response.json.return_value = {'message': {'content': 'local reply'}}
+
+        self.assertEqual(brain.chat('Hello'), 'local reply')
+        cloud_chat.assert_called_once()
+        local_request.assert_called_once()
+
+
+class CloudClientTests(unittest.TestCase):
+    @patch.dict(os.environ, {'PRIMUS_POD': 'http://pod.example:8000'})
+    @patch('primus.cloud_client.requests.post')
+    def test_chat_targets_cloud_brain_and_sends_context(self, post):
+        post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'cloud reply'}}]
+        }
+
+        result = cloud_client.chat_cloud(
+            'hello',
+            system_prompt='persona',
+            history=({'role': 'assistant', 'content': 'previous reply'},),
+        )
+
+        self.assertEqual(result, 'cloud reply')
+        self.assertEqual(
+            post.call_args.args[0],
+            'http://pod.example:8000/v1/chat/completions',
+        )
+        self.assertEqual(
+            post.call_args.kwargs['json']['messages'],
+            [
+                {'role': 'system', 'content': 'persona'},
+                {'role': 'assistant', 'content': 'previous reply'},
+                {'role': 'user', 'content': 'hello'},
+            ],
+        )
+
+    @patch.dict(os.environ, {'PRIMUS_POD': 'http://pod.example:8000'})
+    @patch('primus.cloud_client.requests.post')
+    def test_transcription_targets_perception_service(self, post):
+        post.return_value.json.return_value = {'text': 'cloud words'}
+
+        self.assertEqual(cloud_client.stt_cloud(b'\x01\x00'), 'cloud words')
+        self.assertEqual(post.call_args.args[0], 'http://pod.example:8002/transcribe')
+        self.assertEqual(post.call_args.kwargs['data'], b'\x01\x00')
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch('primus.cloud_client.requests.post')
+    def test_no_pod_configured_skips_remote_request(self, post):
+        self.assertIsNone(cloud_client.chat_cloud('hello'))
+        post.assert_not_called()
 
 
 if __name__ == '__main__':
