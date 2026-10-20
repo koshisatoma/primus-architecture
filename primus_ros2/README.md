@@ -1,5 +1,9 @@
 # Primus ROS 2 skeleton
 
+For repository-wide installation, models, and setup instructions, see
+[`../setup.md`](../setup.md). The project overview is in
+[`../README.md`](../README.md).
+
 This ROS 2 Humble package provides three topic bridges:
 
 - `perception_bridge` publishes the shared-memory teacher camera as

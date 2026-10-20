@@ -14,10 +14,13 @@ _thread = None
 
 def _loop():
     ears, mouth = Ears(), Mouth()
+    from primus.integration import cognition
     from primus.camera_state import latest_teacher_frame
     from primus.people import has_pending_introduction
     from primus.social_awareness import SocialAwareness
 
+    cognitive_state = cognition()
+    cognitive_state.start_daemons()
     social_awareness = SocialAwareness()
     while not _stop.is_set():
         try:
@@ -50,3 +53,6 @@ def stop():
         thread = _thread
     if thread is not None and thread is not threading.current_thread():
         thread.join(timeout=5)
+    from primus.integration import cognition
+
+    cognition().stop_daemons()

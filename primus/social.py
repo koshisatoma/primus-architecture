@@ -51,19 +51,22 @@ def _remember(text, content):
     del _conversation[:-MAX_HISTORY_MESSAGES]
 
 
-def chat(text):
+def chat(text, system_prompt=None):
     if not isinstance(text, str) or not text.strip():
         raise ValueError('Chat input must be a non-empty string')
+    prompt = PERSONA
+    if system_prompt:
+        prompt = f'{PERSONA}\n\n{system_prompt}'
 
     with _conversation_lock:
         messages = [
-            {'role': 'system', 'content': PERSONA},
+            {'role': 'system', 'content': prompt},
             *_conversation,
             {'role': 'user', 'content': text.strip()},
         ]
         cloud_content = chat_cloud(
             text.strip(),
-            system_prompt=PERSONA,
+            system_prompt=prompt,
             history=tuple(_conversation),
         )
         if cloud_content:

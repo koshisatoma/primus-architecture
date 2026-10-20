@@ -84,6 +84,16 @@ def _save(skills):
 
 
 def think(text):
+    from primus.integration import cognition
+
+    cognitive_state = cognition()
+    context = cognitive_state.think_hook(text)
+    reply = _think(text, context)
+    cognitive_state.respond_hook(reply)
+    return reply
+
+
+def _think(text, cognition_context):
     normalized = text.casefold().strip()
     skills = _load()
 
@@ -197,4 +207,4 @@ def think(text):
 
     if 'who are you' in normalized or 'your name' in normalized:
         return 'I’m Primus, your little robot pal. I learn things from what you teach me.'
-    return chat(text)
+    return chat(text, system_prompt=cognition_context['system_prompt'])
