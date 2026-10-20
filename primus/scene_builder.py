@@ -81,6 +81,10 @@ def build_xml():
         1,
     )
     xml = xml.replace('</asset>', ADD_TO_ASSET + '\n  </asset>')
+    from primus.room import room_xml
+    chunk, n_items = room_xml()
+    xml = xml.replace('</worldbody>', chunk + '\n</worldbody>')
+    print(f'[room] injected {n_items} objects')
     xml = xml.replace('</worldbody>', ADD_TO_WORLDBODY + '\n  </worldbody>')
     xml = xml.replace('file="g1.xml"', f'file="{os.path.join(scene_dir, "g1.xml")}"')
     return xml

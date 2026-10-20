@@ -71,7 +71,11 @@ def adam_step(params, gradients, state, learning_rate=3e-4):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', choices=('stand', 'walk', 'reach'), default='stand')
+    parser.add_argument(
+        '--task',
+        choices=('stand', 'walk', 'walk_to', 'sit', 'reach', 'grasp', 'lift', 'place'),
+        default='stand',
+    )
     parser.add_argument('--envs', type=int, default=2048)
     parser.add_argument('--steps', type=int, default=1_000_000)
     parser.add_argument('--T', type=int, default=256)
