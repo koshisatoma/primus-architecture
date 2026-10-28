@@ -241,27 +241,6 @@ PRIMUS contributes to:
 2. **Sim2Real Transfer**: ASTRA framework for grounding abstract simulators.
 3. **Human-Like AI**: Biologically inspired memory, emotion, and social cognition.
 
----
 
-## 14. Citation
-
-If you use PRIMUS in your research, please cite:
-
-```bibtex
-@misc{satoma2026primus,
-  title={PRIMUS: A Tabula Rasa Human-Like Robotics Architecture},
-  author={Satoma, Koshi},
-  year={2026},
-  publisher={GitHub},
-  url={https://github.com/koshisatoma/primus-architecture}
-}
-
-@article{deng2026astra,
-  title={ASTRA: Grounding Abstract Simulators to Reality via History-Based Corrections},
-  author={Deng, et al.},
-  journal={IEEE Robotics and Automation Letters},
-  year={2026}
-}
-```
 
 *Built with ❤️ for the future of human-robot collaboration.*
