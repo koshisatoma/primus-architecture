@@ -120,3 +120,21 @@ def get_object(name):
 
 def list_objects():
     return list(_load())
+
+
+def labels_by_class_id():
+    """Return the most recently taught display name for each detector class."""
+    labels = {}
+    timestamps = {}
+    for name, record in _load().items():
+        if not isinstance(record, dict) or 'class_id' not in record:
+            continue
+        try:
+            class_id = int(record['class_id'])
+            timestamp = float(record.get('timestamp', 0))
+        except (TypeError, ValueError):
+            continue
+        if timestamp >= timestamps.get(class_id, float('-inf')):
+            labels[class_id] = name
+            timestamps[class_id] = timestamp
+    return labels

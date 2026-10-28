@@ -55,6 +55,8 @@ ADD_TO_WORLDBODY = '''
     <camera name="kitchen" pos="2.2 2.2 1.7" mode="targetbody" target="focus" fovy="60"/>
     <camera name="room"    pos="-2.5 -2.5 2.3" mode="targetbody" target="focus" fovy="65"/>
     <camera name="front"   pos="0 -2.7 1.4" mode="targetbody" target="focus" fovy="60"/>
+    <camera name="front3m" pos="0 -3 1.4" xyaxes="1 0 0 0 0.34 0.94" fovy="60"/>
+    <camera name="corner"  pos="2.6 -2.6 2.2" xyaxes="0.7 0.7 0 -0.23 0.23 0.95" fovy="70"/>
     <camera name="g1_body" pos="2.4 0 1.15" mode="targetbody" target="pelvis" fovy="45"/>
 '''
 

@@ -10,7 +10,16 @@ from primus.webcam import Webcam
 
 
 LOGGER = logging.getLogger(__name__)
-NAMED = ['kitchen', 'room', 'g1_eye', 'g1_body', 'teacher', 'detect']
+NAMED = [
+    'kitchen',
+    'room',
+    'g1_eye',
+    'g1_body',
+    'front3m',
+    'corner',
+    'teacher',
+    'detect',
+]
 FEEDS = NAMED
 DETECTION_INTERVAL = 1 / 10
 
@@ -92,7 +101,12 @@ class Cams:
                 if torso_id >= 0:
                     sim.d.xfrc_applied[torso_id, 2] = 80.0
                 mujoco.mj_step(sim.m, sim.d)
-                rendered = {'kitchen': sim.orbit(*self.orbit)}
+                main, front, corner = sim.render_three(*self.orbit)
+                rendered = {
+                    'kitchen': main,
+                    'front3m': front,
+                    'corner': corner,
+                }
                 camera = secondary_cameras[secondary_index]
                 rendered[camera] = sim.named(camera)
                 secondary_index = (secondary_index + 1) % len(secondary_cameras)
@@ -184,6 +198,20 @@ class Cams:
             if self._focus == 'detect' and frame is None:
                 frame = self.frames.get('teacher')
             return frame
+
+    def dashboard_views(self):
+        with self._lock:
+            main_camera = (
+                self._focus
+                if self._focus in {'kitchen', 'room', 'g1_eye', 'g1_body'}
+                else 'kitchen'
+            )
+            return tuple(
+                self.frames.get(name).copy()
+                if self.frames.get(name) is not None
+                else None
+                for name in (main_camera, 'front3m', 'corner', 'teacher')
+            )
 
     def names(self):
         return list(FEEDS)

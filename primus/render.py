@@ -18,6 +18,13 @@ class Sim:
         self.r.update_scene(self.d, name)
         return self.r.render()[..., ::-1]
 
+    def render_three(self, azimuth=200, elevation=-15, distance=3.5):
+        return (
+            self.orbit(azimuth, elevation, distance),
+            self.named('front3m'),
+            self.named('corner'),
+        )
+
     def orbit(self, azimuth, elevation, distance):
         self.cam.azimuth, self.cam.elevation, self.cam.distance = azimuth, elevation, distance
         self.r.update_scene(self.d, self.cam)

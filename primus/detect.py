@@ -174,3 +174,11 @@ def warmup(frame):
 
 def model_kind():
     return _model_kind
+
+
+def class_names():
+    """Return detector class labels keyed by their numeric class IDs."""
+    names = _load().names
+    if isinstance(names, dict):
+        return {int(class_id): str(name) for class_id, name in names.items()}
+    return {class_id: str(name) for class_id, name in enumerate(names)}

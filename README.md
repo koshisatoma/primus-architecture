@@ -42,7 +42,8 @@ GPU serving or robot hardware.
 
 - **Simulation and interface:** `app.py` starts the Gradio UI in
   [`primus/ui.py`](./primus/ui.py); [`primus/cams.py`](./primus/cams.py) renders
-  MuJoCo scenes and telemetry.
+  MuJoCo scenes and telemetry. The dashboard includes three simulation views
+  and RGB, depth, occupancy, gradient, and detection views of the live camera.
 - **Voice:** [`primus/agent.py`](./primus/agent.py) runs the asynchronous
   listen/respond loop. [`primus/ears.py`](./primus/ears.py) uses cloud speech
   recognition when configured and falls back to local Faster Whisper;
@@ -72,6 +73,8 @@ The [`cloud/`](./cloud/) package contains:
 - ASTRA-style source grounding and target-encoder alignment in
   `train_astra.py`.
 - Policy export for the C++ spine in `export_policy.py`.
+- Local MuJoCo teacher demonstrations and policy-correction refinement in
+  `teleop.py` and `train_from_teacher.py`.
 - Optional vLLM, Moshi, transcription, depth, and person-embedding services.
 - A latent-space CEM planner prototype in `wm_planner.py`.
 

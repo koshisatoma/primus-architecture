@@ -2,6 +2,7 @@ import logging
 import os
 from urllib.parse import urlsplit, urlunsplit
 
+import numpy as np
 import requests
 
 
@@ -82,4 +83,32 @@ def stt_cloud(pcm16_bytes, timeout=6):
         return text.strip() or None
     except (requests.RequestException, KeyError, TypeError, ValueError) as error:
         LOGGER.warning('Cloud transcription unavailable; using local Whisper: %s', error)
+        return None
+
+
+def depth_cloud(jpg_bytes, timeout=4):
+    endpoint = _url(8002, '/depth')
+    if endpoint is None:
+        return None
+    try:
+        response = requests.post(
+            endpoint,
+            data=jpg_bytes,
+            headers={'Content-Type': 'image/jpeg'},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        width = int(response.headers['X-Depth-Width'])
+        height = int(response.headers['X-Depth-Height'])
+        depth = np.frombuffer(response.content, dtype='<u2')
+        if width <= 0 or height <= 0 or depth.size != width * height:
+            raise ValueError('Cloud depth response has invalid dimensions')
+        return depth.reshape(height, width)
+    except (
+        requests.RequestException,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
+        LOGGER.warning('Cloud depth unavailable; using local visualization: %s', error)
         return None

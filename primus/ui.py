@@ -1,137 +1,53 @@
 import gradio as gr
 
 from primus.cams import Cams
+from primus import viewops as V
 
 
-C = Cams()
 CSS = """
-html, body {
-    background: #000 !important;
-    height: 100%;
-    margin: 0 !important;
-    overflow: hidden;
-    padding: 0 !important;
-    width: 100%;
+html, body, .gradio-container {
+    background: #0b1220 !important;
+    color: #e9eff8 !important;
 }
 .gradio-container {
-    background: #000 !important;
-    margin: 0 !important;
-    max-width: 100vw !important;
+    margin: 0 auto !important;
+    max-width: 1500px !important;
     min-height: 100vh !important;
-    padding: 0 !important;
-    width: 100vw !important;
+    padding: 18px !important;
 }
 footer { display: none !important; }
-#viewport {
-    background: #000 !important;
-    border: 0 !important;
-    height: 100vh !important;
-    inset: 0;
-    margin: 0 !important;
-    max-width: none !important;
-    overflow: hidden !important;
-    padding: 0 !important;
-    position: fixed !important;
-    width: 100vw !important;
-    z-index: 0;
+.block, .form, .container, .wrap, [data-testid="block-info"] {
+    background-color: #101826 !important;
+    border-color: #1d2a3d !important;
+    color: #e9eff8 !important;
 }
-#viewport > div, #viewport .image-container, #viewport .wrap {
-    background: #000 !important;
-    height: 100vh !important;
-    max-height: none !important;
-    padding: 0 !important;
-    width: 100vw !important;
+label, .label-wrap, .prose, .markdown-body, input, textarea, select {
+    color: #e9eff8 !important;
 }
-#viewport img {
-    background: #000 !important;
-    height: 90vh !important;
-    max-height: none !important;
-    object-fit: contain !important;
-    width: 100vw !important;
+input, textarea, select, [role="combobox"] {
+    background-color: #101826 !important;
 }
-#swap-row {
-    align-items: center;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 4px;
-    justify-content: center;
-    width: 100%;
+.primus-subtitle { color: #8ea3bf; margin-top: 2px; }
+.primus-section { color: #dfe8f4; font-weight: 600; }
+.gr-box, .gr-panel, .gr-group {
+    background: #101826 !important;
+    border-color: #1d2a3d !important;
 }
-#swap-row button {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    border-radius: 999px !important;
-    color: #d8e4e2 !important;
-    flex: 0 0 auto !important;
-    font: 600 11px ui-monospace, monospace !important;
-    letter-spacing: .04em;
-    min-height: 32px !important;
-    padding: 4px 10px !important;
-    white-space: nowrap;
-}
-#swap-row button:hover {
-    background: #71e0c022 !important;
-    border-color: #71e0c088 !important;
-    color: #8af0ce !important;
-}
-#controls {
-    align-items: center;
-    backdrop-filter: blur(14px);
-    background: #080d12e8;
-    border: 1px solid #ffffff26;
-    border-radius: 14px;
-    bottom: 12px;
-    left: 50%;
-    max-width: 96vw;
-    padding: 8px 12px;
-    position: fixed !important;
-    transform: translateX(-50%);
-    width: min(920px, 96vw);
-    z-index: 20;
-}
-#orbit-row {
-    align-items: center;
-    gap: 14px;
-}
-#orbit-row > div { flex: 1 1 0; min-width: 120px; }
-#telemetry {
-    background: #080d12bb !important;
-    border: 1px solid #ffffff24 !important;
-    border-radius: 8px !important;
-    left: 12px;
-    max-width: calc(100vw - 24px);
-    position: fixed !important;
-    top: 12px;
-    width: max-content;
-    z-index: 20;
-}
-#telemetry textarea {
-    background: transparent !important;
-    border: 0 !important;
-    color: #8af0ce !important;
-    font: 600 10px ui-monospace, monospace !important;
-    min-height: 28px !important;
-    padding: 6px 10px !important;
-}
-@media (max-width: 620px) {
-    #swap-row button {
-        font-size: 9px !important;
-        padding: 3px 7px !important;
-    }
-    #orbit-row { gap: 4px; }
-    #orbit-row > div { min-width: 90px; }
-    #controls { bottom: 8px; padding: 6px; }
+@media (max-width: 800px) {
+    .gradio-container { padding: 10px !important; }
 }
 """
 
+SIM_CAMERA_CHOICES = ['kitchen', 'room', 'g1_eye', 'g1_body']
+C = Cams()
 
-def tick():
-    return C.view(), C.status()
+
+def tick(mode):
+    return V.tick_all(mode, C.dashboard_views(), C.status())
 
 
 def focus(name):
     C.focus = name
-    return tick()
 
 
 def set_orbit(azimuth, elevation, distance):
@@ -139,45 +55,77 @@ def set_orbit(azimuth, elevation, distance):
 
 
 def build():
-    with gr.Blocks() as demo:
-        viewport = gr.Image(
-            elem_id='viewport',
-            interactive=False,
-            show_label=False,
+    with gr.Blocks(title='PRIMUS') as demo:
+        gr.HTML(
+            '<h1 style="color:#e9eff8;margin:0;font-weight:700">'
+            'Robotics Vision &amp; Simulation</h1>'
+            '<div class="primus-subtitle">'
+            'MuJoCo Simulation&nbsp; | &nbsp;Live Camera Input</div>'
         )
-        telemetry = gr.Textbox(
-            elem_id='telemetry',
-            interactive=False,
-            lines=1,
-            show_label=False,
-        )
-        with gr.Column(elem_id='controls'):
-            with gr.Row(elem_id='swap-row'):
-                for name in C.names():
-                    label = name.replace('_', ' ').upper()
-                    gr.Button(label, size='sm').click(
-                        focus,
-                        inputs=gr.State(name),
-                        outputs=[viewport, telemetry],
+        with gr.Row(equal_height=False):
+            with gr.Column(scale=1):
+                gr.HTML('<div class="primus-section">MuJoCo Simulation</div>')
+                sim_main = gr.Image(
+                    label='MuJoCo Simulation',
+                    height=430,
+                    interactive=False,
+                )
+                with gr.Row():
+                    sim_front = gr.Image(
+                        label='Front of Robot Cam (3 m)',
+                        height=200,
+                        interactive=False,
                     )
-            with gr.Row(elem_id='orbit-row'):
-                azimuth = gr.Slider(
-                    0, 360, value=200, label='azimuth', step=1
-                )
-                elevation = gr.Slider(
-                    -80, 20, value=-15, label='elevation', step=1
-                )
-                distance = gr.Slider(
-                    1.0, 8.0, value=3.5, label='distance', step=0.1
-                )
-                for slider in (azimuth, elevation, distance):
-                    slider.change(
-                        set_orbit,
-                        inputs=[azimuth, elevation, distance],
-                        outputs=None,
+                    sim_corner = gr.Image(
+                        label='Corner of Room Cam',
+                        height=200,
+                        interactive=False,
                     )
-        gr.Timer(0.05).tick(
-            tick, inputs=None, outputs=[viewport, telemetry]
+                details = gr.Markdown('### Simulation Details')
+                with gr.Accordion('Simulation controls', open=False):
+                    sim_camera = gr.Dropdown(
+                        SIM_CAMERA_CHOICES,
+                        value='kitchen',
+                        label='Main simulation camera',
+                    )
+                    sim_camera.change(focus, inputs=sim_camera, outputs=None)
+                    with gr.Row():
+                        azimuth = gr.Slider(
+                            0, 360, value=200, step=1, label='Azimuth'
+                        )
+                        elevation = gr.Slider(
+                            -80, 20, value=-15, step=1, label='Elevation'
+                        )
+                        distance = gr.Slider(
+                            1.0, 8.0, value=3.5, step=0.1, label='Distance'
+                        )
+                    for slider in (azimuth, elevation, distance):
+                        slider.change(
+                            set_orbit,
+                            inputs=[azimuth, elevation, distance],
+                            outputs=None,
+                        )
+            with gr.Column(scale=1):
+                gr.HTML('<div class="primus-section">📷 Camera Input</div>')
+                mode = gr.Dropdown(
+                    V.CHOICES,
+                    value=V.CHOICES[0],
+                    label='Select Input Type',
+                )
+                live = gr.Image(
+                    label='Live Camera (RGB)',
+                    height=520,
+                    interactive=False,
+                )
+
+        gr.Timer(0.15).tick(
+            fn=tick,
+            inputs=[mode],
+            outputs=[sim_main, sim_front, sim_corner, live, details],
         )
-        demo.load(tick, inputs=None, outputs=[viewport, telemetry])
+        demo.load(
+            fn=tick,
+            inputs=[mode],
+            outputs=[sim_main, sim_front, sim_corner, live, details],
+        )
     return demo
