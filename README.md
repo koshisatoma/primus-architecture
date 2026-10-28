@@ -1,246 +1,241 @@
-# PRIMUS: Tabula Rasa Human-Like Robotics Architecture
+# PRIMUS
 
-![Status](https://img.shields.io/badge/status-active_development-brightgreen)
-![License](https://img.shields.io/badge/license-Apache_2.0-blue)
-![Python](https://img.shields.io/badge/python-3.10+-blue)
-![C++](https://img.shields.io/badge/C++-20-blue)
-![Rust](https://img.shields.io/badge/Rust-1.70+-orange)
+PRIMUS is a research prototype for a voice-first, camera-aware companion and
+humanoid-robot software stack. It combines a local Gradio/MuJoCo experience,
+speech input and output, object/person perception, a small conversational
+brain, optional cloud inference, and early ROS 2 and MJX training components.
 
-**PRIMUS** (Primary Recursive Intelligent Multidimensional Unified System) is a comprehensive architectural framework for building genuinely human-like robotic agents. Unlike traditional robotics systems pre-loaded with vast datasets and pre-trained models, PRIMUS begins as a true **tabula rasa** — a blank slate with zero prior task knowledge. It learns locomotion, manipulation, social interaction, and cognitive behaviors entirely through real-time teaching, ASTRA-grounded simulation, and a biologically inspired, selectively forgettable memory system.
+> **Important:** This repository is a prototype, not a validated robot
+> controller. The ROS 2 task executor does not implement locomotion, grasping,
+> or placing, and the cloud planner is not connected to a live control loop.
+> Do not connect this software to physical actuators without an independently
+> validated safety and control system.
 
-This repository contains the complete software stack: multi-modal perception pipelines, advanced cognitive and social modules, MuJoCo/MJX simulation environments, ASTRA world-model training scripts, a 500Hz C++ reflex spine, Rust-based safety watchdog, ROS 2 integration, and a dual-column Gradio vision dashboard.
+## Get started
 
----
+The complete installation guide—including Python environments, system
+packages, model downloads, optional cloud services, training, ROS 2, and
+troubleshooting—is in **[setup.md](./setup.md)**. Start there before running
+the project.
 
-## Table of Contents
+After installing the local prerequisites and models, follow the run
+instructions in [setup.md](./setup.md) to start the application. The same
+guide documents the optional smoke test, which needs the MJX training stack
+(JAX, MuJoCo/MJX, NumPy, and PyTorch) and does not validate GPU serving or
+robot hardware.
 
-1. [Core Philosophy](#1-core-philosophy)
-2. [Theoretical Foundations](#2-theoretical-foundations)
-3. [Architecture Overview](#3-architecture-overview)
-4. [System Modules](#4-system-modules)
-5. [The Human-Likeness Battery](#5-the-human-likeness-battery)
-6. [ASTRA Grounding Framework](#6-astra-grounding-framework)
-7. [Memory Architecture](#7-memory-architecture)
-8. [Cognitive & Social Systems](#8-cognitive--social-systems)
-9. [Motor Control & Learning](#9-motor-control--learning)
-10. [Perception Pipeline](#10-perception-pipeline)
-11. [Safety & Engineering](#11-safety--engineering)
-12. [Developmental Trajectory](#12-developmental-trajectory)
-13. [Research Context](#13-research-context)
-14. [Citation](#14-citation)
+## What the project contains
 
----
+### Local application
 
-## 1. Core Philosophy
+- **Simulation and interface:** `app.py` starts the Gradio UI in
+  [`primus/ui.py`](./primus/ui.py); [`primus/cams.py`](./primus/cams.py) renders
+  MuJoCo scenes and telemetry.
+- **Voice:** [`primus/agent.py`](./primus/agent.py) runs the asynchronous
+  listen/respond loop. [`primus/ears.py`](./primus/ears.py) uses cloud speech
+  recognition when configured and falls back to local Faster Whisper;
+  [`primus/mouth.py`](./primus/mouth.py) uses a local Piper voice when present
+  and otherwise prints the response.
+- **Brain and teaching:** [`primus/brain.py`](./primus/brain.py) routes
+  conversation, introductions, object naming, text skills, and action commands.
+  [`primus/objects.py`](./primus/objects.py) stores named visual associations.
+  Action commands are routed as text; the standalone action-plan parser is not
+  connected to a complete skill executor.
+- **Cognition prototypes:** [docs/HUMAN_BEHAVIOR.md](./docs/HUMAN_BEHAVIOR.md)
+  maps Sessions 1–9 and the developmental helpers to their modules, with
+  explicit notes on what is integrated versus still experimental.
+- **Perception and awareness:** [`primus/detect.py`](./primus/detect.py)
+  performs YOLO detection; camera and person-state modules support the live
+  view and social-awareness checks.
+- **Scene:** [`primus/scene_builder.py`](./primus/scene_builder.py) constructs
+  the MuJoCo view. [`sim/g1/`](./sim/g1/) contains the Unitree G1 MJCF assets;
+  `primus/room.py` procedurally adds deterministic clutter to the scene.
 
-PRIMUS is built on three foundational pillars that distinguish it from conventional robotics architectures:
+### Cloud and learning components
 
-### 1.1 Tabula Rasa (Zero-Prior Learning)
-The agent starts with **no pre-programmed skills**. When asked to perform an untaught task, it explicitly refuses and requests instruction. This is not a limitation but a design principle: PRIMUS learns exactly like a human child — through demonstration, verbal instruction, and guided practice.
+The [`cloud/`](./cloud/) package contains:
 
-### 1.2 Selective Memory (Forgettable, but Not Catastrophic)
-Human memory is not a perfect recording device. We forget trivial details exponentially (Ebbinghaus forgetting curve) while retaining emotionally salient or frequently rehearsed events for life. PRIMUS replicates this through:
-- **Salience-weighted decay**: Each memory is tagged with emotional valence, novelty, and access frequency. Low-salience traces decay via $S(t) = S_0 \cdot e^{-kt}$.
-- **Sleep-phase consolidation**: During idle periods, the `primus/replay_daemon.py` promotes high-salience episodic memories to semantic/procedural stores.
-- **Anti-catastrophic forgetting**: Using Elastic Weight Consolidation (EWC) and per-skill LoRA adapters, learning a new primitive never overwrites a previously learned skill.
+- MJX reinforcement-learning training in `train_reflex_ppo.py`.
+- Simulation/target episode collection in `collect_episodes.py`.
+- ASTRA-style source grounding and target-encoder alignment in
+  `train_astra.py`.
+- Policy export for the C++ spine in `export_policy.py`.
+- Optional vLLM, Moshi, transcription, depth, and person-embedding services.
+- A latent-space CEM planner prototype in `wm_planner.py`.
 
-### 1.3 ASTRA-Grounded Sim2Real
-Traditional sim-to-real transfer relies on domain randomization. PRIMUS uses the **ASTRA** (Approximate Information State) framework, which grounds an abstract simulator to reality through history-based corrections. The loss function combines three terms:
-$$\mathcal{L} = \lambda_1 \mathcal{L}_{trans} + \lambda_2 \mathcal{L}_{rew} + \lambda_3 \mathcal{L}_{abs}$$
-Where $\mathcal{L}_{trans}$ is latent transition error, $\mathcal{L}_{rew}$ is reward prediction error, and $\mathcal{L}_{abs}$ is abstraction error matching real-world teacher demonstrations.
+The planner is not currently integrated into the application's agent, the ROS 2
+executor, or the C++ control loop. The current ASTRA trainer writes a checkpoint
+state dictionary; the standalone planner currently expects an executable model
+object exposing `plat` and `rpred`. Treat the planner as experimental until
+checkpoint loading and runtime integration are completed and tested.
 
----
+### C++ and ROS 2
 
-## 2. Theoretical Foundations
-PRIMUS integrates insights from multiple disciplines:
-- **Developmental Psychology**: Bowlby's Attachment Theory, Piaget's Sensorimotor Stages, Vygotsky's Zone of Proximal Development.
-- **Cognitive Neuroscience**: Cowan's Working Memory Model (~4 chunks), Fitts-Posner Skill Acquisition, Blakemore's Forward Model (sense of agency).
-- **Affective Science**: Russell's Circumplex Model (valence-arousal), Yerkes-Dodson Law (arousal vs. performance).
-- **Social Cognition**: Theory of Mind (false-belief tracking), Joint Attention, Emotional Contagion.
-- **Motor Control**: Bernstein's Degrees of Freedom Problem, Schmidt's Schema Theory, Dynamic Systems Theory.
+- `core_cpp/` contains camera, reflex, and spine source files; locally built
+  executables are not source-controlled.
+- [`primus_ros2/`](./primus_ros2/) contains a ROS 2 Humble package with camera/
+  perception, brain, and task-executor bridges. Its executor reports that a
+  motion backend is unavailable rather than claiming a robot action ran.
+- [`safety_rs/`](./safety_rs/) is an early Rust crate; it currently has no
+  implementation dependencies or completed safety controller.
 
----
+For ROS package-specific notes, see
+[`primus_ros2/README.md`](./primus_ros2/README.md). The upstream G1 model notes
+are in [`sim/g1/README.md`](./sim/g1/README.md).
 
-## 3. Architecture Overview
+## Research direction and current scope
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    PERCEPTION LAYER                         │
-│  RGB-D sensing | Object detection | Depth estimation | Re-ID│
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                 COGNITION & SOCIAL LAYER                    │
-│  Intent routing | ToM | Emotion | Personality | Proactivity │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                      MEMORY LAYER                           │
-│  5-tier system | Ebbinghaus decay | Sleep consolidation     │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  MOTOR & CONTROL LAYER                      │
-│  500Hz spine | MJX PPO | ASTRA grounding | Teleop teaching  │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    SAFETY LAYER                             │
-│  UDP watchdog | E-stop | Health monitoring (Rust)           │
-└─────────────────────────────────────────────────────────────┘
-```
+PRIMUS explores how conversational interaction, perception, simulation,
+learning, and memory-related helpers might fit together in a robot-oriented
+software stack. The repository includes prototypes for salience-based local
+memory, affect and social cues, spatial state, cognitive load, imitation, and
+developmental counters. Their current implementation and limitations are
+summarized in [docs/HUMAN_BEHAVIOR.md](./docs/HUMAN_BEHAVIOR.md).
 
----
+These are research components, not evidence that the system learns like a
+person or reliably infers human emotions, beliefs, or intent. Many helpers
+require explicit inputs from a caller and are not connected to the live
+camera, microphone, learned policy, or robot controller. The project does not
+report a validated human-likeness score or demonstrate safe physical
+locomotion or manipulation.
 
-## 4. System Modules
+The design draws on ideas from developmental psychology, cognitive science,
+affective science, and motor learning. These are inspirations for software
+experiments, not claims that the system reproduces human development,
+consciousness, emotion, or cognition. The modules use simplified rules and
+explicitly supplied state; their implemented behavior and limitations are
+described in the [cognition prototype guide](./docs/HUMAN_BEHAVIOR.md).
 
-### 4.1 Perception Layer
-- **`primus/shmcam.py` & `core_cpp/cam.cpp`**: 1080p RGB capture via V4L2 → POSIX shared memory ring buffer (<10ms latency).
-- **`primus/detect.py`**: YOLO26x TensorRT FP16 inference (~9ms per frame), person-first ordering.
-- **`cloud/svc_percept.py`**: FastAPI service providing Whisper-large-v3 STT, Depth-Anything-V2 metric depth, and DINOv2 person re-identification.
-- **`primus/objects.py` & `primus/people.py`**: Touch-to-name symbol grounding and left-to-right face-name binding.
+## Architecture at a glance
 
-### 4.2 Cognition & Social Layer
-- **`primus/brain.py`**: Intent router, zero-prior gate, skill recall, action dispatch.
-- **`primus/social.py`**: Ollama/vLLM chat interface with dynamic personality injection.
-- **`primus/social_cognition.py`**: Audio turn-taking (VAD), Theory of Mind (joint attention), emotion recognition (prosody).
-- **`primus/affect_personality.py`**: VAD emotion system, Big Five personality drift, humor and register control.
-- **`primus/proactive_agent.py`**: Time sense, proactive initiation ("Remember when…"), self-awareness (calibrated uncertainty).
-- **`primus/social_bonding.py`**: Bowlby attachment, empathy, false-belief ToM.
+The current software can be understood as several connected and experimental
+parts:
 
-### 4.3 Memory Layer
-- **`primus/memory_store.py`**: SQLite backend with salience indexing and Ebbinghaus exponential decay.
-- **`primus/replay_daemon.py`**: Idle-time consolidation (hippocampal-neocortical replay).
-- **`primus/anti_forgetting.py`**: Per-skill LoRA adapters and Elastic Weight Consolidation (EWC) penalty.
-- **`primus/reconstructive_recall.py`**: Memories reconstructed with mild Gaussian drift (human-like misremembering).
+| Area | Current role |
+| --- | --- |
+| Interaction | Gradio application, asynchronous voice loop, conversation routing, and local or optional cloud model calls. |
+| Perception | Camera capture and YOLO detections support the live view and object/person-related features. |
+| Simulation | MuJoCo renders a G1 scene for the application; MJX provides a separate environment for policy experiments. |
+| Learning | JAX-based PPO training, episode collection, ASTRA model training, and policy export are available as separate workflows. |
+| Cognition prototypes | Local memory and explicitly called social, affective, spatial, developmental, and cognitive-load helpers. |
+| Integration experiments | C++ camera/reflex/spine sources and ROS 2 bridges; not a complete hardware control system. |
 
-### 4.4 Motor & Control Layer
-- **`cloud/g1_env.py`**: MJX (JAX-accelerated MuJoCo) G1 environment with abstraction function $\phi(s)$.
-- **`cloud/train_reflex_ppo.py`**: Pure-JAX PPO implementation parallelized across 2048-4096 environments.
-- **`cloud/collect_episodes.py`**: Golemo protocol for collecting paired sim/real transitions.
-- **`cloud/train_astra.py`**: ASTRA Algorithms 1 & 2 (Grounding + MMD target alignment).
-- **`cloud/export_policy.py`**: Exports JAX policy weights to flat `.bin` files for C++ spine.
-- **`core_cpp/spine.cpp`**: 500Hz control loop loading `.bin` weights.
-- **`cloud/teleop.py`**: HG-DAgger style teleoperation for teacher demonstrations and corrections.
+These components are not one end-to-end autonomous pipeline. In particular,
+the planning prototype is not connected to the voice agent or robot control
+loop, and most cognition helpers are not automatically driven by live sensor
+data.
 
-### 4.5 Safety Layer
-- **`safety_rs/src/main.rs`**: Independent Rust process, UDP listener on port 9119, hard E-stop capability.
+## Memory and cognitive prototypes
 
-### 4.6 Cloud/Simulation Layer
-- **`primus/viewops.py`**: 5-mode live camera processing (RGB, Depth, Occupancy, Gradient, Detection).
-- **`primus/ui.py`**: Gradio dual-column layout (MuJoCo sim left, live camera right).
-- **`primus/render.py`**: Offscreen MuJoCo renderer (kitchen, front3m, corner views).
+The memory store in [`primus/memory_store.py`](./primus/memory_store.py)
+persists JSON-compatible records in a local SQLite database. Its API supports
+salience-aware queries, decay, consolidation, and explicit forgetting.
+[`primus/replay_daemon.py`](./primus/replay_daemon.py) can perform idle
+maintenance in a stoppable background thread. These mechanisms do not extract
+reliable facts from arbitrary conversation or implement a complete human
+episodic/semantic/procedural memory system.
 
----
+Other modules explore reconstructive recall, optional anti-forgetting
+utilities, bounded working memory, prediction-error comparisons, practice
+counters, and proactive suggestion rules. They remain helper libraries or
+training utilities; for example, the EWC/adapter utilities are not integrated
+into PPO or ASTRA training, and the prediction comparator does not consume a
+trained ASTRA dynamics model.
 
-## 5. The Human-Likeness Battery
+## Social, affective, and developmental prototypes
 
-PRIMUS is evaluated against an 18-dimensional behavioral battery:
-1. **Ebbinghaus Decay + Salience Ordering**: Trivial memories fade; important ones persist.
-2. **Replay Consolidation**: Idle-time "sleep" promotes episodic to semantic memory.
-3. **Reconstructive Recall**: Memories retrieved with mild, human-like drift.
-4. **Audio Turn-Taking**: Stays silent when humans converse with each other.
-5. **VAD Emotion → Prosody**: Arousal/valence dynamically modulate TTS pitch and rate.
-6. **Object Permanence**: 3D spatial map persists when objects leave the camera frame.
-7. **Sleep Pressure + Onset**: Unresponsive during sleep; wakes with inertia.
-8. **Nociception + Hyperalgesia**: Pain triggers withdrawal reflex and lasting avoidance.
-9. **Attachment**: Forms bonds with primary caregivers; exhibits stranger anxiety.
-10. **False-Belief ToM**: Understands when a teacher holds an incorrect belief about object location.
-11. **Cowan WM Capacity**: Limited to ~4 chunks; dual-tasking causes measurable interference.
-12. **Fitts-Posner Automaticity**: Practiced skills become faster and free up working memory.
-13. **Violation-of-Expectation**: High latent prediction error (ASTRA) triggers surprise.
-14. **Startle Sensitization**: Strong events temporarily amplify reflex responses.
-15. **Cocktail-Party Attention**: Own name or teacher's voice captures auditory focus.
-16. **Implicature**: Understands indirect requests ("It's cold in here" → close window).
-17. **Language Stage Transitions**: Vocabulary growth follows babbling → one-word → two-word.
-18. **Sense of Agency**: Forward-model comparator distinguishes self-caused actions from external events.
+Modules including [`primus/social_cognition.py`](./primus/social_cognition.py),
+[`primus/affect_personality.py`](./primus/affect_personality.py),
+[`primus/social_bonding.py`](./primus/social_bonding.py),
+[`primus/pragmatics.py`](./primus/pragmatics.py), and
+[`primus/development.py`](./primus/development.py) provide small, explicit
+state updates and heuristic suggestions. Some require caller-supplied values
+such as audio energy, gaze estimates, identified people, observations, or
+practice events. The live microphone path supplies transcripts rather than the
+audio histories these helpers would need for turn-taking or acoustic analysis.
+These features should not be read as validated emotion recognition, theory of
+mind, attachment, language development, or autonomous behavior.
 
-*Run `python tests/test_human_likeness_battery.py` to generate the Human-Likeness Index (HLI) score.*
+## Simulation, policy learning, and ASTRA
 
----
+The MJX environment in [`cloud/g1_env.py`](./cloud/g1_env.py) defines
+simulation tasks for standing, walking, sitting, reaching, grasping, lifting,
+and placing. The PPO trainer learns policies in simulation; task names do not
+by themselves mean the task is grounded to a real target. In particular,
+target/object configuration and meaningful validation are still required for
+the manipulation reward paths.
 
-## 6. ASTRA Grounding Framework
+[`cloud/train_astra.py`](./cloud/train_astra.py) trains a recurrent source
+encoder with transition, reward, and absolute-state prediction heads, then
+aligns a target observation encoder using maximum mean discrepancy. The
+episode collector currently records stand-policy simulation experience; the
+workflow is not a demonstrated real-world teacher-data pipeline or verified
+sim-to-real transfer. The ASTRA checkpoint is a state dictionary, while
+[`cloud/wm_planner.py`](./cloud/wm_planner.py) currently expects a model object
+with `plat` and `rpred` methods. The planner and trainer therefore need an
+adapter and integration before they can be used together.
 
-Instead of making the simulator photorealistic, ASTRA trains a self-predictive latent dynamics model that learns to predict its own errors using history-based corrections.
+The policy exporter creates weights and C++-oriented artifacts, but this is
+not proof of a real-time control guarantee or a safe physical policy. For
+available commands and training caveats, see the
+[cloud guide](./cloud/README.md).
 
-**Loss Function (Algorithm 1)**:
-$$\mathcal{L} = \lambda_1 \mathcal{L}_{trans} + \lambda_2 \mathcal{L}_{rew} + \lambda_3 \mathcal{L}_{abs}$$
+## Perception, ROS 2, and safety scope
 
-**Target Alignment (Algorithm 2)**: After training the source encoder $\psi_s$, we freeze it and train a target encoder $\psi_t$ via Maximum Mean Discrepancy (MMD):
-$$\mathcal{L}_{align} = \text{MMD}(\psi_s(h_t^{sim}), \psi_t(h_t^{real}))$$
+The local detector in [`primus/detect.py`](./primus/detect.py) selects from
+supported YOLO `.pt` and TensorRT engine candidates in the repository root.
+The cloud perception service separately exposes transcription, depth, and
+person-embedding endpoints; depth and re-identification are not currently a
+complete application perception pipeline. Model formats and machine-specific
+weights are covered in [setup.md](./setup.md).
 
-This aligns the source (sim) and target (real) latent spaces, enabling zero-shot transfer of policies trained in the grounded simulator.
+The ROS 2 package provides camera/perception, brain, and task-executor
+bridges. The task executor has no locomotion or manipulation backend. The Rust
+crate in [`safety_rs/`](./safety_rs/) is an early watchdog prototype, not a
+safety-rated controller or substitute for hardware emergency stops, validated
+limits, collision protections, and supervised testing.
 
----
+## Evaluation status
 
-## 7. Memory Architecture
+Repository tests cover deterministic software behavior, imports, and small
+training workflows. They do not measure human-likeness, establish model
+convergence at full scale, demonstrate sim-to-real transfer, or validate
+hardware behavior. The smoke-test workflow and its prerequisites are described
+in [setup.md](./setup.md); detailed cognition test scope is in
+[docs/HUMAN_BEHAVIOR.md](./docs/HUMAN_BEHAVIOR.md).
 
-PRIMUS implements a **5-tier memory system**:
-1. **Procedural**: Taught procedures (DAGs of primitives). Permanent.
-2. **Episodic**: Time-stamped interaction episodes. Decays exponentially unless consolidated.
-3. **Semantic**: Facts extracted from episodes. Permanent.
-4. **Sensory**: Raw perceptual traces (circular buffer, ~1 second).
-5. **Working**: Active chunks under attentional control (~4 chunks, ~30 seconds).
+## Model inventory
 
-**Forgetting Mechanisms**:
-- Ebbinghaus Decay: $S(t) = S_0 \cdot e^{-kt}$
-- Interference Forgetting: Conflicting memories overwrite based on similarity.
-- Reconstructive Drift: Numeric fields perturbed by $\mathcal{N}(0, 0.05^2)$ on recall.
+Model weights and generated training artifacts are local assets and are not
+included in Git. The root `.gitignore` excludes `data/`, model weights, ONNX
+files, and TensorRT engines.
 
----
+| Use | Model / asset | How it is used |
+| --- | --- | --- |
+| Local object detection | YOLO26x/YOLO11x or YOLO11n `.pt`/`.engine` candidates | `primus.detect` searches in priority order; see [`setup.md`](./setup.md). |
+| Optional segmentation | `yolo26n-seg.pt` | Present in some workspaces; not currently selected by `primus.detect`. |
+| Local speech recognition | Faster Whisper `base` | Downloaded by Faster Whisper on first use when no cloud transcription is available. |
+| Local speech output | Piper `en_US-hfc_female-medium.onnx` and its JSON sidecar | Loaded from `data/`; response text is printed if unavailable. |
+| Local chat | Ollama `qwen2.5:3b-instruct` | Used by the local conversation path. |
+| Cloud chat | Qwen2.5-VL-7B-Instruct AWQ | Downloaded by `cloud/download_models.sh`; served through vLLM. |
+| Cloud speech | Kyutai Moshi; Faster Whisper `large-v3` | Moshi is launched as a separate service; large-v3 serves `/transcribe`. |
+| Cloud perception | Depth Anything V2 Large; DINOv2 Large; YOLO detector | Used by the optional depth and person-embedding endpoints. |
+| Learned policies / world model | PPO checkpoints, ASTRA checkpoint, exported policy weights | Produced by the training/export commands in [`cloud/README.md`](./cloud/README.md). |
 
-## 8. Cognitive & Social Systems
+The repository may contain different downloaded YOLO formats on a developer
+machine. For the exact candidate precedence and supported download commands,
+read the setup guide; files in the workspace snapshot are not necessarily
+tracked or installed automatically.
 
-- **Theory of Mind (ToM)**: Tracks what others know vs. what PRIMUS knows (false-belief task competence).
-- **Emotional Contagion**: Catches and mirrors the emotional state of interaction partners ($v_{primus} = \beta \cdot v_{human}$).
-- **Personality Drift**: Big Five traits (OCEAN) drift slowly based on experience ($\alpha = 0.01$).
-- **Proactive Initiation**: After 30+ minutes of idle time, PRIMUS initiates conversation by recalling high-salience episodic memories.
+## Data and privacy
 
----
+Runtime data may include object names, face images, metrics, model outputs, and
+learned skills under `data/`. It can include personal or locally collected
+information. Review it before sharing, uploading, or committing it. Do not
+commit credentials or private model access tokens.
 
-## 9. Motor Control & Learning
+## Project status
 
-**Primitive Library**: 8 core motor primitives trained via PPO in MJX (stand, walk, walk_to, sit, reach, grasp, lift, place).
-**PPO Implementation**: Pure-JAX, 2048-4096 parallel envs, T=256 horizon, GAE $\lambda=0.95$, clip range [0.8, 1.2].
-**C++ Spine Integration**: Exported policies run at 500Hz on the real robot, loading `.bin` weights directly without Python dependencies.
-
----
-
-## 10. Perception Pipeline
-
-- **Camera Capture**: V4L2 → POSIX shared memory ring buffer (<10ms latency).
-- **Object Detection**: YOLO26x TensorRT FP16 (~9ms inference).
-- **Depth Estimation**: Depth-Anything-V2 metric depth from monocular RGB.
-- **Person Re-ID**: DINOv2 embeddings for face-name binding.
-
----
-
-## 11. Safety & Engineering
-
-- **Rust Watchdog**: Independent process monitoring heartbeat via UDP (port 9119). Hard E-stop kills process tree on timeout.
-- **ROS 2 Integration**: Perception and brain bridges for external planners.
-
----
-
-## 12. Developmental Trajectory
-
-PRIMUS follows a developmental sequence analogous to human child development:
-- **0-10h**: Sensorimotor Reflexes (basic reflexes, no intentional action)
-- **10-50h**: Primary Circular Reactions (repeated actions for sensory feedback)
-- **50-200h**: Secondary Circular Reactions (object permanence, means-end reasoning)
-- **200-500h**: Coordination of Schemes (intentional action sequences)
-- **500-1000h**: Tertiary Circular Reactions (experimentation, trial-and-error)
-- **1000h+**: Symbolic Thought (language acquisition, abstract reasoning)
-
----
-
-## 13. Research Context
-
-PRIMUS contributes to:
-1. **Tabula Rasa Robotics**: Learning from scratch without pre-training.
-2. **Sim2Real Transfer**: ASTRA framework for grounding abstract simulators.
-3. **Human-Like AI**: Biologically inspired memory, emotion, and social cognition.
-
-
-
-*Built with ❤️ for the future of human-robot collaboration.*
+This is active prototype software. A parser or training task being present does
+not mean the complete skill is executable on a physical G1. Verify dependencies,
+model licenses, interfaces, and hardware safety independently before deployment.
