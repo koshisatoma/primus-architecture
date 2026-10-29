@@ -1,5 +1,7 @@
 # Python environments and bytecode
 .venv/
+.cx/
+cx/
 venv/
 __pycache__/
 *.py[cod]
