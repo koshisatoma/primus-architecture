@@ -1,248 +1,126 @@
-"""Record keyboard-guided demonstrations with the fixed-base Unitree G1."""
-
 import argparse
-import math
-import threading
+import os
 import time
-from pathlib import Path
-
+import numpy as np
 import mujoco
 import mujoco.viewer
-import numpy as np
+from pynput import keyboard
+from teleop.teacher import register_learned_skill
 
-from teleop.teacher import (
-    PROJECT_ROOT,
-    SKILLS_DIRECTORY,
-    register_learned_skill,
-    task_filename,
-)
-
-
-DEFAULT_SCENE = PROJECT_ROOT / "sim" / "g1" / "scene_teleop.xml"
-RIGHT_ARM_JOINTS = (
-    "right_shoulder_pitch_joint",
-    "right_shoulder_roll_joint",
-    "right_shoulder_yaw_joint",
-    "right_elbow_joint",
-    "right_wrist_roll_joint",
-    "right_wrist_pitch_joint",
-    "right_wrist_yaw_joint",
-)
-RIGHT_HAND_JOINTS = (
-    "right_hand_thumb_0_joint",
-    "right_hand_thumb_1_joint",
-    "right_hand_thumb_2_joint",
-    "right_hand_index_0_joint",
-    "right_hand_index_1_joint",
-    "right_hand_middle_0_joint",
-    "right_hand_middle_1_joint",
-)
-KEY_UP = 265
-KEY_DOWN = 264
-KEY_LEFT = 263
-KEY_RIGHT = 262
-KEY_SPACE = 32
-JOINT_STEP = 0.05
-
-
-def _model_path(path: str | Path) -> Path:
-    model_path = Path(path)
-    if not model_path.is_absolute():
-        model_path = PROJECT_ROOT / model_path
-    return model_path
-
-
-def _named_ids(
-    model: mujoco.MjModel,
-    names: tuple[str, ...],
-    object_type: mujoco.mjtObj,
-) -> list[int]:
-    ids = [mujoco.mj_name2id(model, object_type, name) for name in names]
-    missing = [name for name, object_id in zip(names, ids) if object_id < 0]
-    if missing:
-        raise ValueError(f"G1 scene is missing required names: {', '.join(missing)}")
-    return ids
-
-
-def _set_fixed_base(
-    model: mujoco.MjModel,
-    data: mujoco.MjData,
-    base_pose: np.ndarray,
-) -> None:
-    data.qpos[:7] = base_pose
-    data.qvel[:6] = 0
+def record_task(task_name, xml_path="sim/demo_arena.xml"):
+    print(f"=== RECORDING: {task_name.upper()} ===")
+    
+    model = mujoco.MjModel.from_xml_path(xml_path)
+    data = mujoco.MjData(model)
+    mujoco.mj_resetData(model, data)
     mujoco.mj_forward(model, data)
 
+    # Get the ID of the 'hand' body for IK
+    hand_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, 'hand')
+    if hand_id == -1:
+        print("ERROR: 'hand' body not found in XML!")
+        return
 
-def record_task(
-    task_name: str,
-    xml_path: str | Path = DEFAULT_SCENE,
-    record_hz: float = 30.0,
-) -> Path | None:
-    if not math.isfinite(record_hz) or record_hz <= 0:
-        raise ValueError("Recording frequency must be greater than zero")
-    filename = task_filename(task_name)
+    # Initialize target position to current hand position
+    target_pos = data.xpos[hand_id].copy()
+    
+    keys_pressed = set()
+    is_recording = False
+    recorded_qpos = []
+    move_speed = 0.05 # How fast the hand moves in 3D space
 
-    model = mujoco.MjModel.from_xml_path(str(_model_path(xml_path)))
-    keyframe_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "stand")
-    if keyframe_id < 0:
-        raise ValueError("G1 scene must define a 'stand' keyframe")
+    def on_press(key):
+        try: keys_pressed.add(key.char.lower())
+        except AttributeError:
+            if key == keyboard.Key.space: keys_pressed.add('space')
+            if key == keyboard.Key.enter: keys_pressed.add('enter')
 
-    _named_ids(model, RIGHT_ARM_JOINTS, mujoco.mjtObj.mjOBJ_JOINT)
-    arm_actuator_ids = _named_ids(
-        model, RIGHT_ARM_JOINTS, mujoco.mjtObj.mjOBJ_ACTUATOR
-    )
-    hand_joint_ids = _named_ids(
-        model, RIGHT_HAND_JOINTS, mujoco.mjtObj.mjOBJ_JOINT
-    )
-    hand_actuator_ids = _named_ids(
-        model, RIGHT_HAND_JOINTS, mujoco.mjtObj.mjOBJ_ACTUATOR
-    )
-    if model.jnt_type[0] != mujoco.mjtJoint.mjJNT_FREE:
-        raise ValueError("Expected the G1 scene to use a floating base joint")
+    def on_release(key):
+        try: keys_pressed.discard(key.char.lower())
+        except AttributeError:
+            if key == keyboard.Key.space: keys_pressed.discard('space')
+            if key == keyboard.Key.enter: keys_pressed.discard('enter')
 
-    data = mujoco.MjData(model)
-    mujoco.mj_resetDataKeyframe(model, data, keyframe_id)
-    base_pose = data.qpos[:7].copy()
-    initial_controls = data.ctrl.copy()
-    arm_targets = np.array(
-        [data.ctrl[actuator_id] for actuator_id in arm_actuator_ids],
-        dtype=np.float64,
-    )
-    open_hand_targets = np.array(
-        [data.ctrl[actuator_id] for actuator_id in hand_actuator_ids],
-        dtype=np.float64,
-    )
-    closed_hand_targets = open_hand_targets.copy()
-    for index, actuator_id in enumerate(hand_actuator_ids):
-        lower, upper = model.actuator_ctrlrange[actuator_id]
-        closed_hand_targets[index] = (
-            lower
-            if abs(open_hand_targets[index] - lower)
-            > abs(open_hand_targets[index] - upper)
-            else upper
-        )
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    listener.start()
 
-    lock = threading.Lock()
-    selected_joint = [0]
-    recording_requested = [False]
-    save_requested = [False]
-    close_hand_requested = [False]
-    open_hand_requested = [False]
-    frames: list[np.ndarray] = []
-    recording = False
-    hand_closed = False
-    next_record_time = 0.0
-    should_save = False
+    with mujoco.viewer.launch_passive(model, data) as viewer:
+        if model.ncam > 0:
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+            viewer.cam.fixedcamid = 0
 
-    def on_key(key: int) -> None:
-        character = chr(key).lower() if 32 <= key < 128 else ""
-        with lock:
-            if character in {"1", "2", "3", "4", "5", "6", "7"}:
-                selected_joint[0] = int(character) - 1
-            elif key in (KEY_UP, KEY_RIGHT):
-                selected_joint_index = selected_joint[0]
-                actuator_id = arm_actuator_ids[selected_joint_index]
-                lower, upper = model.actuator_ctrlrange[actuator_id]
-                arm_targets[selected_joint_index] = np.clip(
-                    arm_targets[selected_joint_index] + JOINT_STEP,
-                    lower,
-                    upper,
-                )
-            elif key in (KEY_DOWN, KEY_LEFT):
-                selected_joint_index = selected_joint[0]
-                actuator_id = arm_actuator_ids[selected_joint_index]
-                lower, upper = model.actuator_ctrlrange[actuator_id]
-                arm_targets[selected_joint_index] = np.clip(
-                    arm_targets[selected_joint_index] - JOINT_STEP,
-                    lower,
-                    upper,
-                )
-            elif key == KEY_SPACE:
-                recording_requested[0] = not recording_requested[0]
-            elif character == "g":
-                close_hand_requested[0] = True
-            elif character == "f":
-                open_hand_requested[0] = True
-            elif character == "s":
-                save_requested[0] = True
+        print("\n" + "="*50)
+        print(" CARTESIAN CONTROL (Like a real robot!)")
+        print("="*50)
+        print(" W / S : Hand UP / DOWN")
+        print(" A / D : Hand LEFT / RIGHT")
+        print(" Q / E : Hand FORWARD / BACKWARD")
+        print(" SPACE : Start / Stop Recording")
+        print(" ENTER : Save Task")
+        print("="*50 + "\n")
 
-    viewer = mujoco.viewer.launch_passive(model, data, key_callback=on_key)
-    print(f"=== RECORDING TASK: {task_name} (Unitree G1 right arm) ===")
-    print("1-7: select right-arm joint | arrows: move selected joint")
-    print("G: close hand | F: open hand | SPACE: start/stop recording | S: save and quit")
+        last_space = False
+        last_enter = False
 
-    try:
         while viewer.is_running():
-            with lock:
-                targets = arm_targets.copy()
-                desired_recording = recording_requested[0]
-                should_save = save_requested[0]
-                save_requested[0] = False
-                close_hand = close_hand_requested[0]
-                open_hand = open_hand_requested[0]
-                close_hand_requested[0] = False
-                open_hand_requested[0] = False
+            # 1. Handle Recording
+            if 'space' in keys_pressed and not last_space:
+                is_recording = not is_recording
+                print(f"\n>>> {'RECORDING' if is_recording else 'PAUSED'} <<<")
+            last_space = 'space' in keys_pressed
 
-            data.ctrl[:] = initial_controls
-            for actuator_id, target in zip(arm_actuator_ids, targets):
-                lower, upper = model.actuator_ctrlrange[actuator_id]
-                data.ctrl[actuator_id] = np.clip(target, lower, upper)
+            if 'enter' in keys_pressed and not last_enter:
+                if recorded_qpos:
+                    save_path = f"data/skills/{task_name}_demo.npz"
+                    os.makedirs("data/skills", exist_ok=True)
+                    np.savez(save_path, qpos_seq=np.array(recorded_qpos))
+                    register_learned_skill(task_name, save_path)
+                    print(f"\n>>> SAVED '{task_name}' ({len(recorded_qpos)} steps) <<<")
+                else:
+                    print("\n>>> WARNING: Nothing to save! <<<")
+            last_enter = 'enter' in keys_pressed
 
-            if close_hand:
-                hand_closed = True
-            elif open_hand:
-                hand_closed = False
-            hand_targets = closed_hand_targets if hand_closed else open_hand_targets
-            for actuator_id, target in zip(hand_actuator_ids, hand_targets):
-                data.ctrl[actuator_id] = target
+            # 2. Update Target Position based on keys
+            if 'w' in keys_pressed: target_pos[2] += move_speed # Up
+            if 's' in keys_pressed: target_pos[2] -= move_speed # Down
+            if 'a' in keys_pressed: target_pos[1] += move_speed # Left (Y-axis)
+            if 'd' in keys_pressed: target_pos[1] -= move_speed # Right (Y-axis)
+            if 'q' in keys_pressed: target_pos[0] += move_speed # Forward (X-axis)
+            if 'e' in keys_pressed: target_pos[0] -= move_speed # Backward (X-axis)
 
-            if desired_recording != recording:
-                recording = desired_recording
-                if recording:
-                    next_record_time = data.time
-                print(f"[STATUS] {'RECORDING' if recording else 'PAUSED'}")
+            # 3. Inverse Kinematics (Make the arm reach the target)
+            current_hand_pos = data.xpos[hand_id].copy()
+            error = target_pos - current_hand_pos
+            
+            # Calculate Jacobian
+            jacp = np.zeros((3, model.nv))
+            mujoco.mj_jac(model, data, jacp, None, current_hand_pos, hand_id)
+            
+            # Only use the first 3 joints (the arm)
+            jacp_arm = jacp[:, :3]
+            
+            # Jacobian Transpose IK step
+            dq = jacp_arm.T @ error * 2.0 
+            
+            # Apply movement and clamp to joint limits
+            for i in range(3):
+                data.qpos[i] += dq[i] * model.opt.timestep * 10
+                # Simple clamping to prevent breaking the arm
+                if model.jnt_range[i, 0] != model.jnt_range[i, 1]:
+                    data.qpos[i] = np.clip(data.qpos[i], model.jnt_range[i, 0], model.jnt_range[i, 1])
 
-            mujoco.mj_step(model, data)
-            _set_fixed_base(model, data, base_pose)
-
-            if recording and data.time >= next_record_time:
-                frames.append(data.qpos.copy())
-                next_record_time = data.time + 1.0 / record_hz
-
+            mujoco.mj_forward(model, data)
+            
+            if is_recording:
+                recorded_qpos.append(data.qpos.copy())
+                
             viewer.sync()
-            if should_save:
-                break
             time.sleep(model.opt.timestep)
-    finally:
-        viewer.close()
 
-    if not should_save:
-        return None
-    if not frames:
-        print("[WARNING] Nothing to save.")
-        return None
-
-    SKILLS_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    saved_path = SKILLS_DIRECTORY / f"{filename}-demo.npz"
-    np.savez_compressed(
-        saved_path,
-        qpos_seq=np.asarray(frames, dtype=np.float64),
-        record_hz=np.asarray(record_hz, dtype=np.float64),
-    )
-    register_learned_skill(task_name, saved_path)
-    print(f"[SAVED] Learned '{task_name}' ({len(frames)} frames) at {saved_path}")
-    return saved_path
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task", required=True)
-    parser.add_argument("--xml", default=str(DEFAULT_SCENE))
-    parser.add_argument("--record-hz", type=float, default=30.0)
-    args = parser.parse_args()
-    record_task(args.task, args.xml, args.record_hz)
-
+    listener.stop()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", required=True)
+    args = parser.parse_args()
+    record_task(args.task)

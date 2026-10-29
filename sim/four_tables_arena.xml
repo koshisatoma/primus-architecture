@@ -1,0 +1,119 @@
+<mujoco model="PRIMUS Four Tables Arena">
+    <option timestep="0.002" gravity="0 0 -9.81"/>
+    
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="100" height="100"/>
+        <material name="table_mat" rgba="0.4 0.3 0.2 1.0" reflectance="0.2"/>
+        <material name="red_mat" rgba="0.9 0.1 0.1 1.0" reflectance="0.3"/>
+        <material name="blue_mat" rgba="0.1 0.1 0.9 1.0" reflectance="0.3"/>
+        <material name="green_mat" rgba="0.1 0.9 0.1 1.0" reflectance="0.3"/>
+        <material name="yellow_mat" rgba="0.9 0.9 0.1 1.0" reflectance="0.3"/>
+        <material name="target_mat" rgba="0.8 0.2 0.8 0.4" reflectance="0.1"/>
+        <material name="arm_mat" rgba="0.8 0.8 0.8 1.0" reflectance="0.4"/>
+    </asset>
+
+    <worldbody>
+        <light directional="true" diffuse="0.8 0.8 0.8" pos="0 0 3" dir="0 0 -1"/>
+        <geom name="floor" type="plane" size="6 6 0.1" rgba="0.15 0.15 0.15 1"/>
+
+        <!-- G1 Robot in CENTER -->
+        <body name="g1_base" pos="0 0 0">
+            <geom name="base_visual" type="cylinder" size="0.2 0.1" pos="0 0 0.1" material="arm_mat"/>
+            
+            <!-- Right Arm (3 DOF for demo) -->
+            <body name="right_shoulder" pos="0 -0.15 0.5">
+                <joint name="j1" type="hinge" axis="0 1 0" range="-1.5 1.5" damping="1"/>
+                <geom name="link1" type="capsule" size="0.04 0.15" pos="0 0 0.15" material="arm_mat"/>
+                
+                <body name="right_elbow" pos="0 0 0.3">
+                    <joint name="j2" type="hinge" axis="0 1 0" range="-1.5 0.5" damping="1"/>
+                    <geom name="link2" type="capsule" size="0.03 0.12" pos="0 0 0.12" material="arm_mat"/>
+                    
+                    <body name="right_wrist" pos="0 0 0.24">
+                        <joint name="j3" type="hinge" axis="0 1 0" range="-1.5 1.5" damping="1"/>
+                        <geom name="gripper" type="box" size="0.04 0.04 0.04" pos="0 0 0.04" material="arm_mat"/>
+                    </body>
+                </body>
+            </body>
+        </body>
+
+        <!-- NORTH TABLE: Stack Red Block -->
+        <body name="table_north" pos="0 1.0 0">
+            <geom name="north_table" type="box" size="0.4 0.3 0.05" pos="0 0 0.75" material="table_mat"/>
+            <geom name="north_leg1" type="cylinder" size="0.03 0.75" pos="-0.35 -0.25 0.375" material="table_mat"/>
+            <geom name="north_leg2" type="cylinder" size="0.03 0.75" pos="0.35 -0.25 0.375" material="table_mat"/>
+            <geom name="north_leg3" type="cylinder" size="0.03 0.75" pos="-0.35 0.25 0.375" material="table_mat"/>
+            <geom name="north_leg4" type="cylinder" size="0.03 0.75" pos="0.35 0.25 0.375" material="table_mat"/>
+            
+            <!-- Red Block (start position) -->
+            <body name="red_block" pos="-0.15 0 0.85">
+                <geom name="red_geom" type="box" size="0.04 0.04 0.04" material="red_mat"/>
+            </body>
+            
+            <!-- Target Zone (green mat) -->
+            <geom name="north_target" type="box" size="0.08 0.08 0.01" pos="0.15 0 0.78" material="target_mat"/>
+        </body>
+
+        <!-- SOUTH TABLE: Move Blue Cup -->
+        <body name="table_south" pos="0 -1.0 0">
+            <geom name="south_table" type="box" size="0.4 0.3 0.05" pos="0 0 0.75" material="table_mat"/>
+            <geom name="south_leg1" type="cylinder" size="0.03 0.75" pos="-0.35 -0.25 0.375" material="table_mat"/>
+            <geom name="south_leg2" type="cylinder" size="0.03 0.75" pos="0.35 -0.25 0.375" material="table_mat"/>
+            <geom name="south_leg3" type="cylinder" size="0.03 0.75" pos="-0.35 0.25 0.375" material="table_mat"/>
+            <geom name="south_leg4" type="cylinder" size="0.03 0.75" pos="0.35 0.25 0.375" material="table_mat"/>
+            
+            <!-- Blue Cup (start position) -->
+            <body name="blue_cup" pos="-0.15 0 0.85">
+                <geom name="blue_geom" type="cylinder" size="0.04 0.08" material="blue_mat"/>
+            </body>
+            
+            <!-- Target Zone -->
+            <geom name="south_target" type="box" size="0.08 0.08 0.01" pos="0.15 0 0.78" material="target_mat"/>
+        </body>
+
+        <!-- EAST TABLE: Push Green Ball -->
+        <body name="table_east" pos="1.0 0 0">
+            <geom name="east_table" type="box" size="0.3 0.4 0.05" pos="0 0 0.75" material="table_mat"/>
+            <geom name="east_leg1" type="cylinder" size="0.03 0.75" pos="-0.25 -0.35 0.375" material="table_mat"/>
+            <geom name="east_leg2" type="cylinder" size="0.03 0.75" pos="0.25 -0.35 0.375" material="table_mat"/>
+            <geom name="east_leg3" type="cylinder" size="0.03 0.75" pos="-0.25 0.35 0.375" material="table_mat"/>
+            <geom name="east_leg4" type="cylinder" size="0.03 0.75" pos="0.25 0.35 0.375" material="table_mat"/>
+            
+            <!-- Green Ball (start position) -->
+            <body name="green_ball" pos="-0.15 0 0.85">
+                <geom name="green_geom" type="sphere" size="0.05" material="green_mat"/>
+            </body>
+            
+            <!-- Target Zone -->
+            <geom name="east_target" type="box" size="0.08 0.08 0.01" pos="0.15 0 0.78" material="target_mat"/>
+        </body>
+
+        <!-- WEST TABLE: Wave/Yellow Object -->
+        <body name="table_west" pos="-1.0 0 0">
+            <geom name="west_table" type="box" size="0.3 0.4 0.05" pos="0 0 0.75" material="table_mat"/>
+            <geom name="west_leg1" type="cylinder" size="0.03 0.75" pos="-0.25 -0.35 0.375" material="table_mat"/>
+            <geom name="west_leg2" type="cylinder" size="0.03 0.75" pos="0.25 -0.35 0.375" material="table_mat"/>
+            <geom name="west_leg3" type="cylinder" size="0.03 0.75" pos="-0.25 0.35 0.375" material="table_mat"/>
+            <geom name="west_leg4" type="cylinder" size="0.03 0.75" pos="0.25 0.35 0.375" material="table_mat"/>
+            
+            <!-- Yellow Block (for waving demo) -->
+            <body name="yellow_block" pos="0 0 0.85">
+                <geom name="yellow_geom" type="box" size="0.04 0.04 0.04" material="yellow_mat"/>
+            </body>
+        </body>
+
+        <!-- Labels (visual markers for each table) -->
+        <body name="label_north" pos="0 1.0 1.2">
+            <geom name="label_n" type="box" size="0.1 0.02 0.02" rgba="0.9 0.9 0.9 1"/>
+        </body>
+        <body name="label_south" pos="0 -1.0 1.2">
+            <geom name="label_s" type="box" size="0.1 0.02 0.02" rgba="0.9 0.9 0.9 1"/>
+        </body>
+        <body name="label_east" pos="1.0 0 1.2">
+            <geom name="label_e" type="box" size="0.1 0.02 0.02" rgba="0.9 0.9 0.9 1"/>
+        </body>
+        <body name="label_west" pos="-1.0 0 1.2">
+            <geom name="label_w" type="box" size="0.1 0.02 0.02" rgba="0.9 0.9 0.9 1"/>
+        </body>
+    </worldbody>
+</mujoco>

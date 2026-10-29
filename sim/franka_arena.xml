@@ -1,0 +1,89 @@
+<mujoco model="Franka Gesture Arena">
+    <option timestep="0.002" gravity="0 0 -9.81"/>
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3"/>
+        <global azimuth="120" elevation="-20"/>
+    </visual>
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.1 0.2 0.3" rgb2="0.0 0.0 0.0" width="100" height="100"/>
+        <material name="table_mat" rgba="0.2 0.2 0.2 1.0" reflectance="0.2"/>
+        <material name="franka_white" rgba="0.9 0.9 0.9 1.0" reflectance="0.3" shininess="0.8"/>
+        <material name="franka_dark" rgba="0.1 0.1 0.1 1.0" reflectance="0.5"/>
+        <material name="red_mat" rgba="0.9 0.1 0.1 1.0"/>
+        <material name="blue_mat" rgba="0.1 0.1 0.9 1.0"/>
+        <material name="target_mat" rgba="0.1 0.9 0.1 0.5"/>
+    </asset>
+    <worldbody>
+        <camera name="top_cam" pos="0 -1.5 1.5" xyaxes="1 0 0 0 1 1" fovy="60"/>
+        <light directional="true" diffuse="0.8 0.8 0.8" pos="0 0 3" dir="0 0 -1"/>
+        <geom name="floor" type="plane" size="3 3 0.1" rgba="0.1 0.1 0.1 1"/>
+
+        <!-- Table -->
+        <body name="table" pos="0 0.4 0">
+            <geom name="table_top" type="box" size="0.8 0.8 0.05" pos="0 0 0.75" material="table_mat"/>
+            <geom name="leg1" type="cylinder" size="0.04 0.375" pos="-0.7 -0.7 0.375" material="table_mat"/>
+            <geom name="leg2" type="cylinder" size="0.04 0.375" pos="0.7 -0.7 0.375" material="table_mat"/>
+            <geom name="leg3" type="cylinder" size="0.04 0.375" pos="-0.7 0.7 0.375" material="table_mat"/>
+            <geom name="leg4" type="cylinder" size="0.04 0.375" pos="0.7 0.7 0.375" material="table_mat"/>
+        </body>
+
+        <!-- Franka Arm (Welded to Table) -->
+        <body name="franka_base" pos="0 -0.2 0.8">
+            <geom name="base" type="cylinder" size="0.1 0.05" material="franka_dark"/>
+            
+            <body name="link0" pos="0 0 0.05">
+                <joint name="j1" type="hinge" axis="0 0 1" range="-2.8 2.8" damping="1"/>
+                <geom name="link0_geom" type="capsule" size="0.06 0.05" pos="0 0 0.05" material="franka_white"/>
+
+                <body name="link1" pos="0 0 0.1">
+                    <joint name="j2" type="hinge" axis="0 1 0" range="-1.7 1.7" damping="1"/>
+                    <geom name="link1_geom" type="capsule" size="0.05 0.15" pos="0 0 0.15" material="franka_white"/>
+
+                    <body name="link2" pos="0 0 0.3">
+                        <joint name="j3" type="hinge" axis="0 0 1" range="-2.8 2.8" damping="1"/>
+                        <geom name="link2_geom" type="capsule" size="0.04 0.12" pos="0 0 0.12" material="franka_dark"/>
+
+                        <body name="link3" pos="0 0 0.24">
+                            <joint name="j4" type="hinge" axis="0 1 0" range="-3.0 0.0" damping="1"/>
+                            <geom name="link3_geom" type="capsule" size="0.04 0.1" pos="0 0 0.1" material="franka_white"/>
+
+                            <body name="link4" pos="0 0 0.2">
+                                <joint name="j5" type="hinge" axis="0 0 1" range="-2.8 2.8" damping="1"/>
+                                <geom name="link4_geom" type="capsule" size="0.035 0.08" pos="0 0 0.08" material="franka_dark"/>
+
+                                <body name="link5" pos="0 0 0.16">
+                                    <joint name="j6" type="hinge" axis="0 1 0" range="-1.5 2.0" damping="1"/>
+                                    <geom name="link5_geom" type="capsule" size="0.03 0.06" pos="0 0 0.06" material="franka_white"/>
+
+                                    <body name="link6" pos="0 0 0.12">
+                                        <joint name="j7" type="hinge" axis="0 0 1" range="-2.8 2.8" damping="1"/>
+                                        <geom name="link6_geom" type="capsule" size="0.025 0.05" pos="0 0 0.05" material="franka_dark"/>
+
+                                        <!-- Gripper/Hand -->
+                                        <body name="gripper" pos="0 0 0.1">
+                                            <geom name="gripper_base" type="box" size="0.04 0.04 0.04" material="franka_white"/>
+                                            <body name="finger_left" pos="0.03 0 0.04">
+                                                <joint name="gripper_j1" type="slide" axis="1 0 0" range="0 0.04" damping="0.1"/>
+                                                <geom name="finger_left_geom" type="box" size="0.01 0.02 0.04" material="franka_dark"/>
+                                            </body>
+                                            <body name="finger_right" pos="-0.03 0 0.04">
+                                                <joint name="gripper_j2" type="slide" axis="-1 0 0" range="0 0.04" damping="0.1"/>
+                                                <geom name="finger_right_geom" type="box" size="0.01 0.02 0.04" material="franka_dark"/>
+                                            </body>
+                                        </body>
+                                    </body>
+                                </body>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+            </body>
+        </body>
+
+        <!-- Objects -->
+        <body name="red_block" pos="-0.2 0.4 0.83">
+            <geom name="red_geom" type="box" size="0.04 0.04 0.04" material="red_mat"/>
+        </body>
+        <geom name="target" type="box" size="0.06 0.06 0.01" pos="0.2 0.4 0.78" material="target_mat"/>
+    </worldbody>
+</mujoco>
