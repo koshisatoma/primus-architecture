@@ -65,7 +65,7 @@ fn main() {
                 }
             }
 
-            println!("\n[Rust Watchdog] 🚨 EMERGENCY STOP TRIGGERED! Stopping app.py PID {pid}...");
+            println!("\n[Rust Watchdog] EMERGENCY STOP TRIGGERED! Stopping app.py PID {pid}...");
             let status = Command::new("kill")
                 .arg("-TERM")
                 .arg(pid.to_string())

@@ -123,6 +123,25 @@ PRIMUS integrates insights from multiple disciplines:
 - **`core_cpp/spine.cpp`**: 500Hz control loop loading `.bin` weights.
 - **`cloud/teleop.py`**: HG-DAgger style teleoperation for teacher demonstrations and corrections.
 
+### Local G1 MuJoCo Teaching Demo
+
+The separate `teleop/` tools demonstrate a simulation-only teach-and-replay loop
+with a fixed-base Unitree G1, an actuated right hand, and tabletop objects. An
+untaught task is refused; a human can record joint positions, save the
+demonstration, and replay it later:
+
+```bash
+teleop/venv/bin/python -m teleop.executor --task "wave"
+teleop/venv/bin/python -m teleop.recorder --task "wave"
+teleop/venv/bin/python -m teleop.executor --task "wave"
+```
+
+In the viewer, use `1`-`7` to select a right-arm joint, arrow keys to move it,
+`G`/`F` to close/open the hand, Space to start/pause recording, and `S` to save
+and exit. The base, legs, and torso remain at the standing pose. This is a
+simulation-only demonstration, not a real-robot controller; object contact does
+not guarantee grasping or task success.
+
 ### 4.5 Safety Layer
 - **`safety_rs/src/main.rs`**: Independent Rust process, UDP listener on port 9119, hard E-stop capability.
 
@@ -242,4 +261,4 @@ PRIMUS contributes to:
 3. **Human-Like AI**: Biologically inspired memory, emotion, and social cognition.
 
 
-*Built with ❤️ for the future of human-robot collaboration.*
+*Built for the future of human-robot collaboration.*

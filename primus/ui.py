@@ -106,7 +106,7 @@ def build():
                             outputs=None,
                         )
             with gr.Column(scale=1):
-                gr.HTML('<div class="primus-section">📷 Camera Input</div>')
+                gr.HTML('<div class="primus-section">Camera Input</div>')
                 mode = gr.Dropdown(
                     V.CHOICES,
                     value=V.CHOICES[0],
