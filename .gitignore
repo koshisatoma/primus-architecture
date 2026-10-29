@@ -75,4 +75,6 @@ Thumbs.db
 
 #sim parts
 sim/menagerie/
-sim/scanned_objects/
+sim/scanned_objects/models/
+models/
+
