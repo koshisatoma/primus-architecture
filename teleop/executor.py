@@ -42,6 +42,13 @@ def execute_task(task_name, speed=1.0):
     if not np.isfinite(speed) or speed <= 0:
         raise ValueError("Playback speed must be a positive finite number")
 
+    exists, message = check_skill(task_name)
+    if not exists:
+        print(f"NERO: {message}")
+        print("\nTo teach this task, run:")
+        print(f"  python -m teleop.gesture_teach --task {task_name} --keyboard")
+        return
+
     model = mujoco.MjModel.from_xml_path("sim/nero_arena.xml")
     trajectory = load_trajectory(task_name, model)
     data = mujoco.MjData(model)

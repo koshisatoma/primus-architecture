@@ -21,7 +21,11 @@ def check_skill(task_name):
     task_key = task_name.lower().strip()
     
     if task_key not in registry:
-        return False, f"I haven't been taught about '{task_name}'. Please navigate and perform it for me once."
+        return (
+            False,
+            f"I have no prior knowledge of '{task_name}'. "
+            "Please navigate me through it or teach it first.",
+        )
     
     skill_data = registry[task_key]
     if not os.path.exists(skill_data['file_path']):

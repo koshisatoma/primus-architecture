@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -25,6 +27,20 @@ def hand_with_extended_fingers(indices):
 
 
 class GestureTeachTests(unittest.TestCase):
+    def test_executor_refuses_unknown_task_with_teaching_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(teacher, "SKILLS_FILE", Path(directory) / "skills.json"):
+                output = StringIO()
+                with redirect_stdout(output):
+                    executor.execute_task("stack_cubes")
+
+        self.assertIn("no prior knowledge", output.getvalue())
+        self.assertIn("Please navigate me through it or teach it first", output.getvalue())
+        self.assertIn(
+            "python -m teleop.gesture_teach --task stack_cubes --keyboard",
+            output.getvalue(),
+        )
+
     def test_executor_loads_full_scene_trajectory(self):
         model = mujoco.MjModel.from_xml_path("sim/nero_arena.xml")
         trajectory = np.zeros((2, model.nq), dtype=np.float64)
