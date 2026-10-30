@@ -161,9 +161,11 @@ layer, thumb-index pinch to pick, open palm to place, and fist to save and end
 the recording. Press `Esc` to cancel without saving. Choose another webcam with
 `--camera N`; replacing a saved task requires the explicit `--overwrite` flag.
 If no webcam is available, teaching switches to keyboard mode automatically:
-use the arrow keys to move, `W`/`S` (or Page Up/Down) to raise/lower, `P` to
-pick, **Shift + arrows** to nudge the held object, `O` to place, and Enter to
-save. You can also force this mode with `--keyboard`.
+use the arrow keys to move, `W`/`S` (or Page Up/Down) to raise/lower, and
+**Shift + arrows** near an object to move the arm and object together without
+picking it first. Press `O` to release the object and Enter to save. Move the
+arm near an object with the regular arrows before using Shift. You can also
+force this mode with `--keyboard`.
 This is a local simulation demonstration, not a real-robot controller.
 
 Replay a taught task with `python -m teleop.executor --task move_cup` or

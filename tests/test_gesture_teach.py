@@ -107,7 +107,7 @@ class GestureTeachTests(unittest.TestCase):
             "SAVE",
         )
 
-    def test_shift_arrows_nudge_held_object_not_arm_target(self):
+    def test_shift_arrows_move_held_object_and_arm_target_together(self):
         target = np.array([0.0, 0.4, gesture_teach.UPPER_LAYER_HEIGHT])
         held_offset = np.array([0.0, 0.0, -0.04])
         original_target = target.copy()
@@ -121,8 +121,8 @@ class GestureTeachTests(unittest.TestCase):
             ),
             "MOVE_OBJECT",
         )
-        self.assertAlmostEqual(held_offset[0], 0.05)
-        np.testing.assert_array_equal(target, original_target)
+        self.assertAlmostEqual(target[0], original_target[0] + 0.05)
+        np.testing.assert_array_equal(held_offset, [0.0, 0.0, -0.04])
         self.assertEqual(
             gesture_teach.apply_keyboard_command(
                 "Up",
@@ -132,7 +132,7 @@ class GestureTeachTests(unittest.TestCase):
             ),
             "MOVE_OBJECT",
         )
-        self.assertAlmostEqual(held_offset[1], 0.05)
+        self.assertAlmostEqual(target[1], original_target[1] + 0.05)
         self.assertEqual(
             gesture_teach.apply_keyboard_command(
                 "Left",
@@ -142,6 +142,33 @@ class GestureTeachTests(unittest.TestCase):
             ),
             "NO_OBJECT_HELD",
         )
+
+    def test_direct_move_selects_nearby_object_without_pick(self):
+        model = mujoco.MjModel.from_xml_path("sim/nero_arena.xml")
+        data = mujoco.MjData(model)
+        mujoco.mj_resetData(model, data)
+        mujoco.mj_forward(model, data)
+        cube_id = mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            "cube_red",
+        )
+        end_effector_id = mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            "nero_ee",
+        )
+        data.xpos[end_effector_id] = data.xpos[cube_id]
+
+        selected = gesture_teach._find_nearby_object(
+            model,
+            data,
+            end_effector_id,
+        )
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected[0], "cube_red")
+        np.testing.assert_array_equal(selected[1], np.zeros(3))
 
     def test_gesture_names_cover_move_lower_raise_pick_place_and_save(self):
         self.assertEqual(

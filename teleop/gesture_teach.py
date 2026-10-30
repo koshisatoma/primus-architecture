@@ -29,7 +29,7 @@ UPPER_LAYER_HEIGHT = 0.99
 
 
 def apply_keyboard_command(key, target_pos, *, shift=False, held_offset=None):
-    """Move the arm, or nudge a held object with Shift plus a movement key."""
+    """Move the arm, or move the arm and selected object together."""
     movement = {
         "Left": (-0.05, 0.0, 0.0),
         "Right": (0.05, 0.0, 0.0),
@@ -44,10 +44,10 @@ def apply_keyboard_command(key, target_pos, *, shift=False, held_offset=None):
         if shift:
             if held_offset is None:
                 return "NO_OBJECT_HELD"
-            held_offset[:] = np.clip(
-                held_offset + np.asarray(movement[key]),
-                [-0.5, -0.5, -0.5],
-                [0.5, 0.5, 0.5],
+            target_pos[:] = np.clip(
+                target_pos + np.asarray(movement[key]),
+                [-0.55, 0.05, CONTACT_HEIGHT],
+                [0.55, 0.95, UPPER_LAYER_HEIGHT],
             )
             return "MOVE_OBJECT"
         target_pos[:] = np.clip(
@@ -125,6 +125,23 @@ def _free_joint_qpos_address(model, body_name):
     if joint_id == -1:
         raise ValueError(f"Movable object {body_name!r} has no free joint")
     return int(model.jnt_qposadr[joint_id])
+
+
+def _find_nearby_object(model, data, end_effector_id, max_distance=0.3):
+    """Return the closest movable object and its offset from the end effector."""
+    end_effector_pos = data.xpos[end_effector_id]
+    closest = None
+    for name in GRASPABLE_BODIES:
+        body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+        if body_id == -1:
+            continue
+        offset = data.xpos[body_id] - end_effector_pos
+        distance = float(np.linalg.norm(offset))
+        if distance <= max_distance and (closest is None or distance < closest[0]):
+            closest = (distance, name, offset.copy())
+    if closest is None:
+        return None
+    return closest[1], closest[2]
 
 
 def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
@@ -223,8 +240,8 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         )
         keyboard_controls = (
             "Arrows: move  |  W/S or PageUp/PageDown: raise/lower  |  "
-            "P: pick  |  Shift+arrows: nudge held object  |  "
-            "O: place  |  Enter: save"
+            "Move arm near object, then Shift+arrows: move arm + object  |  "
+            "O: release  |  Enter: save"
         )
         controls_label = tk.Label(
             root,
@@ -287,7 +304,7 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         root.bind("<KeyPress-q>", close_window)
 
         def handle_keyboard(event):
-            nonlocal is_recording
+            nonlocal is_recording, held_body
             is_shift = bool(event.state & 0x0001)
             gesture = apply_keyboard_command(
                 event.keysym,
@@ -303,12 +320,30 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
                     held_offset=held_offset[0],
                 )
             if gesture in {"MOVE", "MOVE_OBJECT", "PINCH", "OPEN_PALM"}:
+                if gesture == "MOVE_OBJECT" and held_body is None:
+                    mujoco.mj_forward(model, data)
+                    nearby = _find_nearby_object(model, data, end_effector_id)
+                    if nearby is None:
+                        status_label.config(
+                            text=(
+                                "Move the arm close to an object with the arrows "
+                                "before using Shift+arrows."
+                            )
+                        )
+                        return "break"
+                    held_body, initial_offset = nearby
+                    held_offset[0] = initial_offset
+                    print(f">>> DIRECT-MOVING {held_body} WITH THE ARM")
+                    gesture = apply_keyboard_command(
+                        event.keysym,
+                        target_pos,
+                        shift=True,
+                        held_offset=held_offset[0],
+                    )
                 if not is_recording:
                     is_recording = True
                     print(">>> RECORDING STARTED")
                 keyboard_gesture[0] = gesture
-            elif gesture == "NO_OBJECT_HELD":
-                status_label.config(text="Pick up an object with P before using Shift+arrows.")
             elif gesture == "SAVE":
                 keyboard_gesture[0] = gesture
             return "break"
@@ -327,8 +362,9 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         else:
             print("Arrow keys: move across the table. W: raise; S: lower.")
             print("PageUp/PageDown also raise/lower.")
-            print("P: pinch/pick up. Shift+arrows: nudge the held object.")
-            print("O: open/place. Enter: save and finish.")
+            print("Shift+arrows near an object: move that object and the arm together.")
+            print("No P/pick required. O releases the selected object.")
+            print("Enter: save and finish.")
         print("Press Esc to cancel without saving.")
         print("Drag the simulation image to orbit; use the mouse wheel to zoom.")
 
@@ -387,41 +423,21 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
             if gesture == "PINCH":
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_closed
                 if (not was_pinching or not use_camera) and held_body is None:
-                    mujoco.mj_forward(model, data)
-                    end_effector_pos = data.xpos[end_effector_id]
-                    nearest_name = min(
-                        GRASPABLE_BODIES,
-                        key=lambda name: np.linalg.norm(
-                            data.xpos[
-                                mujoco.mj_name2id(
-                                    model,
-                                    mujoco.mjtObj.mjOBJ_BODY,
-                                    name,
-                                )
-                            ]
-                            - end_effector_pos
-                        ),
-                    )
-                    nearest_id = mujoco.mj_name2id(
+                    nearby = _find_nearby_object(
                         model,
-                        mujoco.mjtObj.mjOBJ_BODY,
-                        nearest_name,
+                        data,
+                        end_effector_id,
+                        max_distance=0.16,
                     )
-                    if np.linalg.norm(data.xpos[nearest_id] - end_effector_pos) <= 0.16:
-                        held_body = nearest_name
-                        held_offset[0] = (
-                            data.qpos[
-                                object_qpos[held_body] : object_qpos[held_body] + 3
-                            ]
-                            - end_effector_pos
-                        ).copy()
+                    if nearby is not None:
+                        held_body, held_offset[0] = nearby
                     else:
                         status_label.config(
                             text="No object close enough to pinch. Lower the gripper and try again."
                         )
                 was_pinching = True
             elif gesture == "MOVE_OBJECT":
-                pass
+                data.qpos[list(GRIPPER_JOINTS)] = gripper_open
             elif gesture == "OPEN_PALM":
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_open
                 held_body = None
