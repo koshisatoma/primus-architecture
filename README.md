@@ -142,6 +142,35 @@ and exit. The base, legs, and torso remain at the standing pose. This is a
 simulation-only demonstration, not a real-robot controller; object contact does
 not guarantee grasping or task success.
 
+### Nero Gesture Pick-and-Place Demo
+
+The Nero teaching scene contains two cubes and an open box, a cup and its
+destination marker, and a glass with a plate. The objects are arranged on the
+same tabletop within the arm's tested reachable area. Teach each task with:
+
+```bash
+python -m teleop.gesture_teach --task stack_cubes
+python -m teleop.gesture_teach --task move_cup
+python -m teleop.gesture_teach --task glass_to_plate
+```
+
+The fullscreen simulation can be orbited by dragging over the image and zoomed
+with the mouse wheel. Hand controls are: index finger to move over the table,
+V-sign to lower to the table, three fingers or thumb-up to reach the upper
+layer, thumb-index pinch to pick, open palm to place, and fist to save and end
+the recording. Press `Esc` to cancel without saving. Choose another webcam with
+`--camera N`; replacing a saved task requires the explicit `--overwrite` flag.
+If no webcam is available, teaching switches to keyboard mode automatically:
+use the arrow keys to move, `W`/`S` (or Page Up/Down) to raise/lower, `P` to
+pick, `O` to place, and Enter to save. You can also force this mode with
+`--keyboard`.
+This is a local simulation demonstration, not a real-robot controller.
+
+Replay a taught task with `python -m teleop.executor --task move_cup` or
+`python -m teleop.executor --task glass_to_plate`. The replay window has a
+**Reset / Replay** button (also press `R`), Space to pause/resume, and `+`/`-`
+to adjust playback speed.
+
 ### 4.5 Safety Layer
 - **`safety_rs/src/main.rs`**: Independent Rust process, UDP listener on port 9119, hard E-stop capability.
 

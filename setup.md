@@ -192,6 +192,34 @@ python -m cloud.teleop --task reach --policy data/reach_policy_weights.npz --out
 # Controls: 1/2/3/4 = joint group, Arrows = move, SPACE = takeover, S = save
 ```
 
+### 7.4 Nero Gesture Pick-and-Place Teaching
+```bash
+python -m teleop.gesture_teach --task stack_cubes
+python -m teleop.gesture_teach --task move_cup
+python -m teleop.gesture_teach --task glass_to_plate
+```
+
+The fullscreen tabletop simulation includes both cubes and the open box, the
+cup and its marked destination, and the glass and plate. Drag the preview to
+orbit around the scene and use the mouse wheel to zoom. Hand gestures move and
+lower the arm, pinch to pick up an object, open the hand to place it, and make
+a fist to save the demonstration. Use `--camera N` to select a different
+webcam; use `--overwrite` only when intentionally replacing an existing
+recording. If the camera cannot be opened, close other camera applications,
+check system camera permissions, or try another camera index. Without a
+webcam, the tool automatically falls back to keyboard teaching: use arrow
+keys to move, `W`/`S` or Page Up/Down to raise/lower, `P` to pick, `O` to
+place, and Enter to save. Pass `--keyboard` to select this mode directly.
+
+Replay saved tasks in the 3D window:
+```bash
+python -m teleop.executor --task move_cup
+python -m teleop.executor --task glass_to_plate
+```
+
+Click **Reset / Replay** (or press `R`) to run it again; Space pauses or
+resumes, and `+`/`-` adjust playback speed.
+
 ---
 
 ## 8. Troubleshooting
