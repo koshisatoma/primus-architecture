@@ -28,7 +28,7 @@ CONTACT_HEIGHT = 0.91
 UPPER_LAYER_HEIGHT = 0.99
 
 
-def apply_keyboard_command(key, target_pos, *, shift=False, held_offset=None):
+def apply_keyboard_command(key, target_pos, *, shift=False):
     """Move the arm, or move the arm and selected object together."""
     movement = {
         "Left": (-0.05, 0.0, 0.0),
@@ -42,8 +42,6 @@ def apply_keyboard_command(key, target_pos, *, shift=False, held_offset=None):
     }
     if key in movement:
         if shift:
-            if held_offset is None:
-                return "NO_OBJECT_HELD"
             target_pos[:] = np.clip(
                 target_pos + np.asarray(movement[key]),
                 [-0.55, 0.05, CONTACT_HEIGHT],
@@ -201,6 +199,7 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         is_recording = False
         held_body = None
         held_offset = [None]
+        direct_moving = [False]
         was_pinching = False
         gripper_open = 0.04
         gripper_closed = 0.012
@@ -236,11 +235,12 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         status_label.pack()
         camera_controls = (
             "Index: move  |  V-sign: contact  |  3 fingers/thumb-up: upper layer  |  "
-            "Pinch: pick  |  Open palm: place  |  Fist: save"
+            "Pinch: pick  |  Open palm: place  |  Fist: save  |  "
+            "Keyboard Shift+arrows: move nearest object + arm"
         )
         keyboard_controls = (
             "Arrows: move  |  W/S or PageUp/PageDown: raise/lower  |  "
-            "Move arm near object, then Shift+arrows: move arm + object  |  "
+            "Shift+arrows: move nearest object + arm together  |  "
             "O: release  |  Enter: save"
         )
         controls_label = tk.Label(
@@ -306,40 +306,43 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         def handle_keyboard(event):
             nonlocal is_recording, held_body
             is_shift = bool(event.state & 0x0001)
+            previous_target = target_pos.copy()
             gesture = apply_keyboard_command(
                 event.keysym,
                 target_pos,
                 shift=is_shift,
-                held_offset=held_offset[0],
             )
             if gesture == "NEUTRAL":
                 gesture = apply_keyboard_command(
                     event.keysym.lower(),
                     target_pos,
                     shift=is_shift,
-                    held_offset=held_offset[0],
                 )
             if gesture in {"MOVE", "MOVE_OBJECT", "PINCH", "OPEN_PALM"}:
                 if gesture == "MOVE_OBJECT" and held_body is None:
                     mujoco.mj_forward(model, data)
-                    nearby = _find_nearby_object(model, data, end_effector_id)
+                    nearby = _find_nearby_object(
+                        model,
+                        data,
+                        end_effector_id,
+                        max_distance=float("inf"),
+                    )
                     if nearby is None:
                         status_label.config(
-                            text=(
-                                "Move the arm close to an object with the arrows "
-                                "before using Shift+arrows."
-                            )
+                            text="No movable object is available to direct-move."
                         )
                         return "break"
-                    held_body, initial_offset = nearby
-                    held_offset[0] = initial_offset
-                    print(f">>> DIRECT-MOVING {held_body} WITH THE ARM")
-                    gesture = apply_keyboard_command(
-                        event.keysym,
-                        target_pos,
-                        shift=True,
-                        held_offset=held_offset[0],
+                    held_body, _ = nearby
+                    body_id = mujoco.mj_name2id(
+                        model,
+                        mujoco.mjtObj.mjOBJ_BODY,
+                        held_body,
                     )
+                    held_offset[0] = (
+                        data.xpos[body_id].copy() - previous_target
+                    )
+                    direct_moving[0] = True
+                    print(f">>> DIRECT-MOVING {held_body} WITH THE ARM")
                 if not is_recording:
                     is_recording = True
                     print(">>> RECORDING STARTED")
@@ -348,8 +351,7 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
                 keyboard_gesture[0] = gesture
             return "break"
 
-        if not use_camera:
-            root.bind_all("<KeyPress>", handle_keyboard)
+        root.bind_all("<KeyPress>", handle_keyboard)
         root.focus_force()
 
         print(f"=== TEACHING NERO: {task_name.upper()} ===")
@@ -359,10 +361,11 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
             print("Use three fingers or thumb-up to reach the upper layer.")
             print("Pinch thumb and index to pick; open your hand to place.")
             print("Make a fist to save and finish.")
+            print("Keyboard arrows also move the arm; Shift+arrows move the nearest object with it.")
         else:
             print("Arrow keys: move across the table. W: raise; S: lower.")
             print("PageUp/PageDown also raise/lower.")
-            print("Shift+arrows near an object: move that object and the arm together.")
+            print("Shift+arrows: move the nearest object and the arm together.")
             print("No P/pick required. O releases the selected object.")
             print("Enter: save and finish.")
         print("Press Esc to cancel without saving.")
@@ -384,6 +387,9 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
                     else None
                 )
                 gesture = get_gesture(landmarks) if landmarks is not None else "NEUTRAL"
+                if keyboard_gesture[0] != "NEUTRAL":
+                    gesture = keyboard_gesture[0]
+                    keyboard_gesture[0] = "NEUTRAL"
             else:
                 landmarks = None
                 gesture = keyboard_gesture[0]
@@ -442,6 +448,7 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_open
                 held_body = None
                 held_offset[0] = None
+                direct_moving[0] = False
                 was_pinching = False
             elif gesture == "FIST":
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_open
@@ -452,8 +459,13 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
             mujoco.mj_forward(model, data)
             if held_body is not None:
                 address = object_qpos[held_body]
+                follow_position = (
+                    target_pos
+                    if direct_moving[0]
+                    else data.xpos[end_effector_id]
+                )
                 data.qpos[address : address + 3] = (
-                    data.xpos[end_effector_id]
+                    follow_position
                     + (
                         held_offset[0]
                         if held_offset[0] is not None

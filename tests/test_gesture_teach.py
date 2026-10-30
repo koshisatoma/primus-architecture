@@ -107,9 +107,8 @@ class GestureTeachTests(unittest.TestCase):
             "SAVE",
         )
 
-    def test_shift_arrows_move_held_object_and_arm_target_together(self):
+    def test_shift_arrows_move_object_and_arm_target_together(self):
         target = np.array([0.0, 0.4, gesture_teach.UPPER_LAYER_HEIGHT])
-        held_offset = np.array([0.0, 0.0, -0.04])
         original_target = target.copy()
 
         self.assertEqual(
@@ -117,31 +116,19 @@ class GestureTeachTests(unittest.TestCase):
                 "Right",
                 target,
                 shift=True,
-                held_offset=held_offset,
             ),
             "MOVE_OBJECT",
         )
         self.assertAlmostEqual(target[0], original_target[0] + 0.05)
-        np.testing.assert_array_equal(held_offset, [0.0, 0.0, -0.04])
         self.assertEqual(
             gesture_teach.apply_keyboard_command(
                 "Up",
                 target,
                 shift=True,
-                held_offset=held_offset,
             ),
             "MOVE_OBJECT",
         )
         self.assertAlmostEqual(target[1], original_target[1] + 0.05)
-        self.assertEqual(
-            gesture_teach.apply_keyboard_command(
-                "Left",
-                target,
-                shift=True,
-                held_offset=None,
-            ),
-            "NO_OBJECT_HELD",
-        )
 
     def test_direct_move_selects_nearby_object_without_pick(self):
         model = mujoco.MjModel.from_xml_path("sim/nero_arena.xml")

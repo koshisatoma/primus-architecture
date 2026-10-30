@@ -209,9 +209,10 @@ recording. If the camera cannot be opened, close other camera applications,
 check system camera permissions, or try another camera index. Without a
 webcam, the tool automatically falls back to keyboard teaching: use arrow
 keys to move, `W`/`S` or Page Up/Down to raise/lower, and **Shift + arrows**
-near an object to move the arm and object together without picking it first.
-Press `O` to release the object and Enter to save. Pass `--keyboard` to select
-this mode directly.
+to move the nearest object and arm together without picking it first. Press
+`O` to release the object and Enter to save. Pass `--keyboard` to select this
+mode directly; keyboard controls also remain available when a webcam is
+connected.
 
 Replay saved tasks in the 3D window:
 ```bash
