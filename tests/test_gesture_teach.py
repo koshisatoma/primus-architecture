@@ -107,6 +107,42 @@ class GestureTeachTests(unittest.TestCase):
             "SAVE",
         )
 
+    def test_shift_arrows_nudge_held_object_not_arm_target(self):
+        target = np.array([0.0, 0.4, gesture_teach.UPPER_LAYER_HEIGHT])
+        held_offset = np.array([0.0, 0.0, -0.04])
+        original_target = target.copy()
+
+        self.assertEqual(
+            gesture_teach.apply_keyboard_command(
+                "Right",
+                target,
+                shift=True,
+                held_offset=held_offset,
+            ),
+            "MOVE_OBJECT",
+        )
+        self.assertAlmostEqual(held_offset[0], 0.05)
+        np.testing.assert_array_equal(target, original_target)
+        self.assertEqual(
+            gesture_teach.apply_keyboard_command(
+                "Up",
+                target,
+                shift=True,
+                held_offset=held_offset,
+            ),
+            "MOVE_OBJECT",
+        )
+        self.assertAlmostEqual(held_offset[1], 0.05)
+        self.assertEqual(
+            gesture_teach.apply_keyboard_command(
+                "Left",
+                target,
+                shift=True,
+                held_offset=None,
+            ),
+            "NO_OBJECT_HELD",
+        )
+
     def test_gesture_names_cover_move_lower_raise_pick_place_and_save(self):
         self.assertEqual(
             gesture_teach.get_gesture(hand_with_extended_fingers({8})),

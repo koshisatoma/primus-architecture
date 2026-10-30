@@ -28,8 +28,8 @@ CONTACT_HEIGHT = 0.91
 UPPER_LAYER_HEIGHT = 0.99
 
 
-def apply_keyboard_command(key, target_pos):
-    """Apply one keyboard teaching command and return its gesture equivalent."""
+def apply_keyboard_command(key, target_pos, *, shift=False, held_offset=None):
+    """Move the arm, or nudge a held object with Shift plus a movement key."""
     movement = {
         "Left": (-0.05, 0.0, 0.0),
         "Right": (0.05, 0.0, 0.0),
@@ -41,6 +41,15 @@ def apply_keyboard_command(key, target_pos):
         "s": (0.0, 0.0, -0.05),
     }
     if key in movement:
+        if shift:
+            if held_offset is None:
+                return "NO_OBJECT_HELD"
+            held_offset[:] = np.clip(
+                held_offset + np.asarray(movement[key]),
+                [-0.5, -0.5, -0.5],
+                [0.5, 0.5, 0.5],
+            )
+            return "MOVE_OBJECT"
         target_pos[:] = np.clip(
             target_pos + np.asarray(movement[key]),
             [-0.55, 0.05, CONTACT_HEIGHT],
@@ -174,6 +183,7 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         trajectory = []
         is_recording = False
         held_body = None
+        held_offset = [None]
         was_pinching = False
         gripper_open = 0.04
         gripper_closed = 0.012
@@ -213,7 +223,8 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         )
         keyboard_controls = (
             "Arrows: move  |  W/S or PageUp/PageDown: raise/lower  |  "
-            "P: pick  |  O: place  |  Enter: save"
+            "P: pick  |  Shift+arrows: nudge held object  |  "
+            "O: place  |  Enter: save"
         )
         controls_label = tk.Label(
             root,
@@ -277,14 +288,27 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
 
         def handle_keyboard(event):
             nonlocal is_recording
-            gesture = apply_keyboard_command(event.keysym, target_pos)
+            is_shift = bool(event.state & 0x0001)
+            gesture = apply_keyboard_command(
+                event.keysym,
+                target_pos,
+                shift=is_shift,
+                held_offset=held_offset[0],
+            )
             if gesture == "NEUTRAL":
-                gesture = apply_keyboard_command(event.keysym.lower(), target_pos)
-            if gesture in {"MOVE", "PINCH", "OPEN_PALM"}:
+                gesture = apply_keyboard_command(
+                    event.keysym.lower(),
+                    target_pos,
+                    shift=is_shift,
+                    held_offset=held_offset[0],
+                )
+            if gesture in {"MOVE", "MOVE_OBJECT", "PINCH", "OPEN_PALM"}:
                 if not is_recording:
                     is_recording = True
                     print(">>> RECORDING STARTED")
                 keyboard_gesture[0] = gesture
+            elif gesture == "NO_OBJECT_HELD":
+                status_label.config(text="Pick up an object with P before using Shift+arrows.")
             elif gesture == "SAVE":
                 keyboard_gesture[0] = gesture
             return "break"
@@ -303,7 +327,8 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
         else:
             print("Arrow keys: move across the table. W: raise; S: lower.")
             print("PageUp/PageDown also raise/lower.")
-            print("P: pinch/pick up. O: open/place. Enter: save and finish.")
+            print("P: pinch/pick up. Shift+arrows: nudge the held object.")
+            print("O: open/place. Enter: save and finish.")
         print("Press Esc to cancel without saving.")
         print("Drag the simulation image to orbit; use the mouse wheel to zoom.")
 
@@ -384,14 +409,23 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
                     )
                     if np.linalg.norm(data.xpos[nearest_id] - end_effector_pos) <= 0.16:
                         held_body = nearest_name
+                        held_offset[0] = (
+                            data.qpos[
+                                object_qpos[held_body] : object_qpos[held_body] + 3
+                            ]
+                            - end_effector_pos
+                        ).copy()
                     else:
                         status_label.config(
                             text="No object close enough to pinch. Lower the gripper and try again."
                         )
                 was_pinching = True
+            elif gesture == "MOVE_OBJECT":
+                pass
             elif gesture == "OPEN_PALM":
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_open
                 held_body = None
+                held_offset[0] = None
                 was_pinching = False
             elif gesture == "FIST":
                 data.qpos[list(GRIPPER_JOINTS)] = gripper_open
@@ -403,7 +437,12 @@ def teach_task(task_name, camera_index=0, overwrite=False, keyboard=False):
             if held_body is not None:
                 address = object_qpos[held_body]
                 data.qpos[address : address + 3] = (
-                    data.xpos[end_effector_id] + OBJECT_GRASP_OFFSET
+                    data.xpos[end_effector_id]
+                    + (
+                        held_offset[0]
+                        if held_offset[0] is not None
+                        else OBJECT_GRASP_OFFSET
+                    )
                 )
                 mujoco.mj_forward(model, data)
 

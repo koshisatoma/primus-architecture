@@ -209,7 +209,8 @@ recording. If the camera cannot be opened, close other camera applications,
 check system camera permissions, or try another camera index. Without a
 webcam, the tool automatically falls back to keyboard teaching: use arrow
 keys to move, `W`/`S` or Page Up/Down to raise/lower, `P` to pick, `O` to
-place, and Enter to save. Pass `--keyboard` to select this mode directly.
+place, **Shift + arrows** to nudge the held object, and Enter to save. Pass
+`--keyboard` to select this mode directly.
 
 Replay saved tasks in the 3D window:
 ```bash
