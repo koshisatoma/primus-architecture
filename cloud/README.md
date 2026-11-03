@@ -72,27 +72,6 @@ This writes `data/stand_policy_weights.npz` and the flat layer files plus
 `policy_spec.json` under `data/stand_policy_cpp/`. Add `--onnx` only when
 `jax2onnx` is installed and ONNX output is needed.
 
-### Local teacher demonstrations
-
-The keyboard teleoperator runs a local MuJoCo viewer and does not require the
-cloud pod. It collects demonstrations only in simulation; it is not connected
-to physical robot actuators. Load a policy to let it run until you take control
-with SPACE, then use 1–4 to select a joint group and the arrow keys to adjust
-its targets. SPACE hands control back to the policy; S saves and exits.
-
-```bash
-python -m cloud.teleop \
-  --task reach --policy data/reach_policy_weights.npz --out data/demos
-```
-
-The command saves `data/demos_reach.npz` and
-`data/corrections_reach.jsonl`. Without `--policy`, teacher control is active
-from startup and only demonstrations are recorded. Keep the generated files
-local unless you have reviewed them for data and privacy concerns.
-
-Refine a task checkpoint with the collected demonstrations and, optionally,
-the paired teacher/policy actions:
-
 ```bash
 python -m cloud.train_from_teacher \
   --ckpt data/ckpt_reach.npz \

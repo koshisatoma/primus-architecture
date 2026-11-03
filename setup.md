@@ -23,7 +23,7 @@ This document provides **exact, copy-pasteable commands** to set up PRIMUS on bo
 - **OS**: Ubuntu 22.04 or 24.04
 - **CPU**: 8+ cores (Intel i7/Ryzen 7 or better)
 - **RAM**: 16GB minimum, 32GB recommended
-- **GPU**: NVIDIA RTX 4060 (8GB VRAM) or higher (for local smoke tests, teleop, UI)
+- **GPU**: NVIDIA RTX 4060 (8GB VRAM) or higher (for local smoke tests and UI)
 - **Storage**: 50GB free space
 - **Network**: Stable internet
 
@@ -185,43 +185,6 @@ python -m cloud.collect_episodes --eps 200 --T 500 --out data/episodes
 python -m cloud.train_astra --epochs 50 --align_epochs 20
 git add data/ && git commit -m "Trained all primitives + ASTRA grounding" && git push
 ```
-
-### 7.3 Teleop Teaching (Local)
-```bash
-python -m cloud.teleop --task reach --policy data/reach_policy_weights.npz --out data/demos
-# Controls: 1/2/3/4 = joint group, Arrows = move, SPACE = takeover, S = save
-```
-
-### 7.4 Nero Gesture Pick-and-Place Teaching
-```bash
-python -m teleop.gesture_teach --task stack_cubes
-python -m teleop.gesture_teach --task move_cup
-python -m teleop.gesture_teach --task glass_to_plate
-```
-
-The fullscreen tabletop simulation includes both cubes and the open box, the
-cup and its marked destination, and the glass and plate. Drag the preview to
-orbit around the scene and use the mouse wheel to zoom. Hand gestures move and
-lower the arm, pinch to pick up an object, open the hand to place it, and make
-a fist to save the demonstration. Use `--camera N` to select a different
-webcam; use `--overwrite` only when intentionally replacing an existing
-recording. If the camera cannot be opened, close other camera applications,
-check system camera permissions, or try another camera index. Without a
-webcam, the tool automatically falls back to keyboard teaching: use arrow
-keys to move, `W`/`S` or Page Up/Down to raise/lower, and **Shift + arrows**
-to move the nearest object and arm together without picking it first. Press
-`O` to release the object and Enter to save. Pass `--keyboard` to select this
-mode directly; keyboard controls also remain available when a webcam is
-connected.
-
-Replay saved tasks in the 3D window:
-```bash
-python -m teleop.executor --task move_cup
-python -m teleop.executor --task glass_to_plate
-```
-
-Click **Reset / Replay** (or press `R`) to run it again; Space pauses or
-resumes, and `+`/`-` adjust playback speed.
 
 ---
 
